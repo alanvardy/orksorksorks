@@ -1,0 +1,11 @@
+name: CI (PR)
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    uses: ./.github/workflows/_reusable-lint.yml
+  test:
+    uses: ./.github/workflows/_reusable-test.yml
