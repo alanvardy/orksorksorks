@@ -52,6 +52,13 @@ pub enum Commands {
     /// Print the artifact directory path (cwd/.pi/orksorksorks/<branch>/)
     #[command(name = "artifact_directory")]
     ArtifactDirectory,
+
+    /// Determine the current step from present trigger artifacts
+    Step {
+        /// Path to the TOML config file (relative paths resolve against the CWD)
+        #[arg(long, value_name = "CONFIG", default_value = "orksorksorks.toml")]
+        config: PathBuf,
+    },
 }
 
 /// Route a parsed CLI to its handler and return a success message or error.
@@ -63,6 +70,7 @@ pub fn select_command(cli: &Cli) -> Result<String, Error> {
         }
         Commands::Branch => branch_command(),
         Commands::ArtifactDirectory => artifact_directory_command(),
+        Commands::Step { config } => step_command(config.clone()),
     }
 }
 
@@ -124,6 +132,18 @@ fn determine_step(config: &Config, artifact_dir: &str) -> Result<String, Error> 
         "step",
         &format!("{artifact_dir}: no trigger artifact matched"),
     ))
+}
+
+/// Handle the `step` subcommand: read the config, derive the artifact
+/// directory from cwd + git branch, and return the current step name.
+///
+/// `read_config` runs before git resolution so a missing/unreadable config
+/// deterministically fails with `"io"`.
+fn step_command(config: std::path::PathBuf) -> Result<String, Error> {
+    let cfg = crate::config::read_config(&config)?;
+    let cwd = std::env::current_dir()?;
+    let artifact_dir = artifact_dir_path(&cwd, &git::current_branch()?);
+    determine_step(&cfg, &artifact_dir)
 }
 
 #[cfg(test)]
@@ -298,6 +318,39 @@ mod tests {
         };
         let artifact_dir = format!("{}/", dir.path().display());
         assert_eq!(determine_step(&config, &artifact_dir).unwrap(), "two");
+    }
+
+    #[test]
+    fn cli_try_parse_accepts_step() {
+        use clap::Parser;
+        let result = Cli::try_parse_from(["orksorksorks", "step"]);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn cli_try_parse_accepts_step_with_custom_config() {
+        use clap::Parser;
+        let cli = Cli::try_parse_from(["orksorksorks", "step", "--config", "custom.toml"]).unwrap();
+        match cli.command {
+            Commands::Step { config } => {
+                assert_eq!(config, std::path::PathBuf::from("custom.toml"));
+            }
+            _ => panic!("expected Commands::Step"),
+        }
+    }
+
+    #[test]
+    fn select_command_routes_step() {
+        let cli = Cli {
+            json: false,
+            command: Commands::Step {
+                config: std::path::PathBuf::from("definitely-missing-config-file.toml"),
+            },
+        };
+        // step_command reads the (missing) config first → "io", proving the
+        // arm dispatched to step_command (and not, e.g., branch/artifact_directory).
+        let err = select_command(&cli).unwrap_err();
+        assert_eq!(err.source, "io");
     }
 
     #[test]
