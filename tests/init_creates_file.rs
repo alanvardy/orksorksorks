@@ -88,3 +88,38 @@ fn init_json_error_in_readonly_dir_shows_source_io() {
     perms.set_readonly(false);
     fs::set_permissions(&config_dir, perms).unwrap();
 }
+
+#[test]
+fn init_with_config_flag_writes_to_given_path() {
+    let temp = tempfile::tempdir().unwrap();
+    let target = temp.path().join("custom.toml");
+    let mut cmd = Command::cargo_bin("orksorksorks").unwrap();
+    // Hostile default env — must be ignored when --config is passed.
+    let hostile = temp.path().join("never-used");
+    cmd.env("XDG_CONFIG_HOME", &hostile);
+    cmd.arg("init").arg("--config").arg(&target);
+
+    cmd.assert().success();
+
+    // File lands exactly at the override path, default dir not consulted.
+    assert!(target.exists(), "override target not created");
+    assert!(!hostile.exists(), "default dir should not be created");
+    let content = fs::read_to_string(&target).unwrap();
+    assert_eq!(content, "version = \"0.1.0\"\n");
+}
+
+#[test]
+fn init_without_home_fails_with_config_dir_tag() {
+    let mut cmd = Command::cargo_bin("orksorksorks").unwrap();
+    cmd.env_remove("HOME");
+    cmd.env_remove("XDG_CONFIG_HOME");
+
+    let output = cmd.args(["init", "-j"]).output().unwrap();
+    assert!(!output.status.success());
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains(r#""source":"config-dir""#),
+        "stdout: {stdout}"
+    );
+}
