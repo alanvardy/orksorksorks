@@ -7,7 +7,11 @@ fn expected_artifact_directory() -> String {
         .output()
         .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
         .unwrap();
-    format!("{}/.pi/orksorksorks/{}/", cwd.display(), branch)
+    format!(
+        "{}/.pi/orksorksorks/{}/",
+        cwd.display(),
+        branch.replace('/', "-")
+    )
 }
 
 #[test]
