@@ -486,6 +486,7 @@ fn step_no_artifacts_present_fails() {
 ## Cross-cutting notes (from `structure.md`)
 
 - **Reverse priority** = last-forward step whose artifact exists; documented by `determine_step_prefers_last_step_in_reverse` and `step_prints_name_of_step_with_present_artifact`.
+- **Default step (post-implementation refinement)** — a step with `trigger_artifact = ""` is a default/fallback: it never matches by existence, but is returned instead of erroring when no other step's artifact exists. Last such step forward wins (reverse priority). Covered by `determine_step_empty_trigger_*` unit tests and `step_with_default_returns_default_when_no_artifacts` / `step_real_artifact_beats_default_step` integration tests.
 - **Output layer untouched** — no change to `src/main.rs`, `Display`, or bell/exit policy. The Phase 5 no-match test asserts `.failure()` only; the JSON error envelope body remains unit-covered only (`src/errors.rs` serialize test).
 - **Config read lives in `src/config.rs`** (data-access), not in the handler, so it is unit-testable before CLI wiring exists.
 - **No new dependencies**; `tempfile` (already a runtime dep) is used test-side only.

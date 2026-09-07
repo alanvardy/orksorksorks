@@ -86,3 +86,59 @@ fn step_no_artifacts_present_fails() {
         .assert()
         .failure();
 }
+
+#[test]
+fn step_with_default_returns_default_when_no_artifacts() {
+    let dir = init_git_repo();
+    // A step with an empty trigger_artifact is the default: it matches when
+    // no other step's artifact exists, so the command succeeds (no error).
+    std::fs::write(
+        dir.path().join("orksorksorks.toml"),
+        concat!(
+            "version = \"0.1.0\"\n",
+            "[[steps]]\n",
+            "name = \"one\"\n",
+            "trigger_artifact = \"first.txt\"\n",
+            "[[steps]]\n",
+            "name = \"default\"\n",
+            "trigger_artifact = \"\"\n",
+        ),
+    )
+    .unwrap();
+
+    let mut cmd = Command::cargo_bin("orksorksorks").unwrap();
+    let output = cmd.arg("step").current_dir(dir.path()).output().unwrap();
+    cmd.assert().success();
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert_eq!(stdout.trim_end_matches('\x07').trim_end(), "default");
+    assert!(!stdout.contains('\x1b'), "stdout: {stdout}");
+}
+
+#[test]
+fn step_real_artifact_beats_default_step() {
+    let dir = init_git_repo();
+    std::fs::write(
+        dir.path().join("orksorksorks.toml"),
+        concat!(
+            "version = \"0.1.0\"\n",
+            "[[steps]]\n",
+            "name = \"default\"\n",
+            "trigger_artifact = \"\"\n",
+            "[[steps]]\n",
+            "name = \"two\"\n",
+            "trigger_artifact = \"second.txt\"\n",
+        ),
+    )
+    .unwrap();
+    let artifact_dir = artifact_dir(dir.path());
+    std::fs::create_dir_all(&artifact_dir).unwrap();
+    std::fs::write(artifact_dir.join("second.txt"), "").unwrap();
+
+    let mut cmd = Command::cargo_bin("orksorksorks").unwrap();
+    let output = cmd.arg("step").current_dir(dir.path()).output().unwrap();
+    cmd.assert().success();
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert_eq!(stdout.trim_end_matches('\x07').trim_end(), "two");
+}
