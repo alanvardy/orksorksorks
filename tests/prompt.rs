@@ -1,0 +1,198 @@
+use assert_cmd::Command;
+
+const BRANCH: &str = "main";
+
+/// `git init -b <name>` yields an unborn branch, and modern git (>= 2.22)
+/// still reports its name from `git branch --show-current`.
+fn init_git_repo() -> tempfile::TempDir {
+    let dir = tempfile::tempdir().unwrap();
+    let status = std::process::Command::new("git")
+        .args(["init", "-b", BRANCH])
+        .current_dir(dir.path())
+        .status()
+        .unwrap();
+    assert!(status.success(), "git init failed");
+    dir
+}
+
+fn artifact_dir(dir: &std::path::Path) -> std::path::PathBuf {
+    dir.join(".pi").join("orksorksorks").join(BRANCH)
+}
+
+/// Config with two steps (`one`, `two`) whose names each have a matching
+/// `[[prompts]]` entry (multi-line TOML content).
+fn write_config(dir: &std::path::Path) {
+    std::fs::write(
+        dir.join("orksorksorks.toml"),
+        concat!(
+            "version = \"0.1.0\"\n",
+            "[[steps]]\n",
+            "name = \"one\"\n",
+            "trigger_artifact = \"first.txt\"\n",
+            "model = \"small\"\n",
+            "[[steps]]\n",
+            "name = \"two\"\n",
+            "trigger_artifact = \"second.txt\"\n",
+            "model = \"high\"\n",
+            "[[prompts]]\n",
+            "name = \"one\"\n",
+            "content = \"\"\"\n",
+            "# Prompt for step one\n",
+            "\"\"\"\n",
+            "[[prompts]]\n",
+            "name = \"two\"\n",
+            "content = \"\"\"\n",
+            "# Prompt for step two\n",
+            "\"\"\"\n",
+        ),
+    )
+    .unwrap();
+}
+
+#[test]
+fn prompt_without_step_name_infers_current_step() {
+    let dir = init_git_repo();
+    write_config(dir.path());
+    let artifact_dir = artifact_dir(dir.path());
+    std::fs::create_dir_all(&artifact_dir).unwrap();
+    std::fs::write(artifact_dir.join("second.txt"), "").unwrap();
+
+    let mut cmd = Command::cargo_bin("orksorksorks").unwrap();
+    let output = cmd
+        .args(["prompt", "--config", "orksorksorks.toml"])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+    cmd.assert().success();
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("# Prompt for step two"), "stdout: {stdout}");
+    assert!(!stdout.contains('\x1b'), "stdout: {stdout}");
+}
+
+#[test]
+fn prompt_without_step_name_no_artifacts_fails() {
+    let dir = init_git_repo();
+    write_config(dir.path());
+
+    Command::cargo_bin("orksorksorks")
+        .unwrap()
+        .args(["prompt", "--config", "orksorksorks.toml"])
+        .current_dir(dir.path())
+        .assert()
+        .failure();
+}
+
+#[test]
+fn prompt_with_explicit_step_name_overrides_step() {
+    // Even with a later artifact present, an explicit step name wins.
+    let dir = init_git_repo();
+    write_config(dir.path());
+    let artifact_dir = artifact_dir(dir.path());
+    std::fs::create_dir_all(&artifact_dir).unwrap();
+    std::fs::write(artifact_dir.join("second.txt"), "").unwrap();
+
+    let mut cmd = Command::cargo_bin("orksorksorks").unwrap();
+    let output = cmd
+        .args(["prompt", "one", "--config", "orksorksorks.toml"])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+    cmd.assert().success();
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("# Prompt for step one"), "stdout: {stdout}");
+    assert!(!stdout.contains('\x1b'), "stdout: {stdout}");
+}
+
+#[test]
+fn prompt_json_returns_valid_json_with_data_field() {
+    let dir = init_git_repo();
+    write_config(dir.path());
+    let artifact_dir = artifact_dir(dir.path());
+    std::fs::create_dir_all(&artifact_dir).unwrap();
+    std::fs::write(artifact_dir.join("first.txt"), "").unwrap();
+
+    let mut cmd = Command::cargo_bin("orksorksorks").unwrap();
+    let output = cmd
+        .args(["prompt", "--config", "orksorksorks.toml", "-j"])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+    cmd.assert().success();
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let v: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    let data = v["data"].as_str().unwrap();
+    assert!(data.contains("# Prompt for step one"), "data: {data}");
+    assert!(!stdout.contains('\x1b'), "stdout: {stdout}");
+}
+
+#[test]
+fn prompt_unknown_step_name_fails() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join("orksorksorks.toml"),
+        concat!(
+            "version = \"0.1.0\"\n",
+            "[[prompts]]\n",
+            "name = \"research\"\n",
+            "content = \"\"\"\n",
+            "# Research — Answer the Questions\n",
+            "\"\"\"\n",
+        ),
+    )
+    .unwrap();
+
+    Command::cargo_bin("orksorksorks")
+        .unwrap()
+        .args(["prompt", "nope", "--config", "orksorksorks.toml"])
+        .current_dir(dir.path())
+        .assert()
+        .failure();
+}
+
+/// Without `--config`, `prompt` resolves the config through the config
+/// directory — mirroring `step`/`model`/`init`.
+#[test]
+fn prompt_without_flag_reads_config_dir() {
+    let dir = init_git_repo();
+    let xdg = tempfile::tempdir().unwrap();
+    let config_dir = xdg.path().join("cfg");
+    std::fs::create_dir_all(&config_dir).unwrap();
+    std::fs::write(
+        config_dir.join("orksorksorks.toml"),
+        concat!(
+            "version = \"0.1.0\"\n",
+            "[[steps]]\n",
+            "name = \"one\"\n",
+            "trigger_artifact = \"first.txt\"\n",
+            "model = \"small\"\n",
+            "[[prompts]]\n",
+            "name = \"one\"\n",
+            "content = \"\"\"\n",
+            "# Question — Decompose the Task\n",
+            "\"\"\"\n",
+        ),
+    )
+    .unwrap();
+    let artifact_dir = artifact_dir(dir.path());
+    std::fs::create_dir_all(&artifact_dir).unwrap();
+    std::fs::write(artifact_dir.join("first.txt"), "").unwrap();
+
+    let mut cmd = Command::cargo_bin("orksorksorks").unwrap();
+    let output = cmd
+        .arg("prompt")
+        .current_dir(dir.path())
+        .env("XDG_CONFIG_HOME", &config_dir)
+        .output()
+        .unwrap();
+    cmd.assert().success();
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("# Question — Decompose the Task"),
+        "stdout: {stdout}"
+    );
+    assert!(!stdout.contains('\x1b'), "stdout: {stdout}");
+}
