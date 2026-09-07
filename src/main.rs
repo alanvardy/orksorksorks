@@ -7,6 +7,7 @@
 
 mod commands;
 mod config;
+mod config_dir;
 mod errors;
 mod format;
 mod git;
