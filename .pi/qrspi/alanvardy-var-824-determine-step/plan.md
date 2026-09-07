@@ -193,8 +193,8 @@ fn read_config_malformed_toml_tags_toml_de() {
 
 ### Verification
 #### Automated
-- [ ] `cargo test read_config` passes (all three tests)
-- [ ] `./scripts/test.sh` green
+- [x] `cargo test read_config` passes (all three tests)
+- [x] `./scripts/test.sh` green
 
 #### Manual
 - [ ] n/a — fully covered by unit tests and the Phase 5 end-to-end path.
