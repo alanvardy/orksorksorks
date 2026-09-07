@@ -215,8 +215,8 @@ fn artifact_directory_command() -> Result<String, Error> {
 ### Verification
 
 #### Automated
-- [ ] `./scripts/test.sh`
-- [ ] fast loop: `cargo nextest run --bin orksorksorks` (Phases 1–3 tests pass)
+- [x] `./scripts/test.sh`
+- [x] fast loop: `cargo nextest run --bin orksorksorks` (Phases 1–3 tests pass)
 
 #### Manual
 - [ ] n/a — handlers are exercised through `select_command`, live in Phase 5.
