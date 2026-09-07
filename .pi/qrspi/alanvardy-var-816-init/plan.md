@@ -727,8 +727,8 @@ fn init_no_json_prints_plain_text() {
 ### Verification
 
 #### Automated
-- [ ] `cargo nextest run` passes (all unit + integration tests green)
-- [ ] `cargo clippy --tests -- -D warnings` passes
+- [x] `cargo nextest run` passes (all unit + integration tests green)
+- [x] `cargo clippy --tests -- -D warnings` passes
 
 #### Manual
 - [ ] `cargo run -- init` prints "✓ init stub" to stdout
