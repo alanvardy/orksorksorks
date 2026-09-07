@@ -94,6 +94,18 @@ fn parse_branch_output(exit_ok: bool, stdout: &str, stderr: &str) -> Result<Stri
     Ok(stdout.to_string())
 }
 
+/// Handle the `branch` subcommand: return the current git branch, plain.
+fn branch_command() -> Result<String, Error> {
+    current_branch()
+}
+
+/// Handle the `artifact_directory` subcommand: return
+/// `$PWD/.pi/orksorksorks/<branch>/`, plain (no directory creation).
+fn artifact_directory_command() -> Result<String, Error> {
+    let cwd = std::env::current_dir()?;
+    Ok(artifact_dir_path(&cwd, &current_branch()?))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -176,5 +188,24 @@ mod tests {
         let err = parse_branch_output(false, "", "fatal: not a git repository\n").unwrap_err();
         assert_eq!(err.source, "git");
         assert_eq!(err.message, "fatal: not a git repository");
+    }
+
+    #[test]
+    fn branch_command_returns_plain_non_empty() {
+        let branch = branch_command().unwrap();
+        assert!(!branch.is_empty());
+        assert!(!branch.contains('\x1b'), "{branch}");
+    }
+
+    #[test]
+    fn artifact_directory_command_composes_cwd_and_branch() {
+        use pretty_assertions::assert_eq;
+        let result = artifact_directory_command().unwrap();
+        let cwd = std::env::current_dir().unwrap();
+        let branch = current_branch().unwrap();
+        let expected = artifact_dir_path(&cwd, &branch);
+        assert_eq!(result, expected);
+        assert!(!result.is_empty());
+        assert!(!result.contains('\x1b'), "{result}");
     }
 }
