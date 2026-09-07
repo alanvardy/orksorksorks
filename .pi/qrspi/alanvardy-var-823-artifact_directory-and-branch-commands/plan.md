@@ -451,8 +451,8 @@ fn artifact_directory_outside_repo_fails() {
 ### Verification
 
 #### Automated
-- [ ] `cargo nextest run` (full suite: existing 21 tests + ~10 new unit + 4 new integration)
-- [ ] `./scripts/test.sh` (full gate: fmt → check → clippy → nextest → forbidden-strings)
+- [x] `cargo nextest run` (full suite: existing 21 tests + ~10 new unit + 4 new integration)
+- [x] `./scripts/test.sh` (full gate: fmt → check → clippy → nextest → forbidden-strings)
 
 #### Manual
 - [ ] `cargo run -- branch` → prints the current branch, no ANSI.
