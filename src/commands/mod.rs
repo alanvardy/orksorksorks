@@ -69,6 +69,31 @@ fn artifact_dir_path(cwd: &std::path::Path, branch: &str) -> String {
     format!("{}/.pi/orksorksorks/{}/", cwd.display(), branch)
 }
 
+/// Resolve the current git branch by invoking `git branch --show-current`.
+///
+/// A failed spawn (git not on PATH) rides the existing `From<std::io::Error>`
+/// → `"io"` tag; git-level failures use `Error::new("git", ...)`.
+fn current_branch() -> Result<String, Error> {
+    let output = std::process::Command::new("git")
+        .args(["branch", "--show-current"])
+        .output()?;
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    parse_branch_output(output.status.success(), &stdout, &stderr)
+}
+
+/// Pure decision: map `git branch --show-current` output to a branch or error.
+fn parse_branch_output(exit_ok: bool, stdout: &str, stderr: &str) -> Result<String, Error> {
+    if !exit_ok {
+        return Err(Error::new("git", stderr.trim()));
+    }
+    let stdout = stdout.trim();
+    if stdout.is_empty() {
+        return Err(Error::new("git", "not on a branch (detached HEAD)"));
+    }
+    Ok(stdout.to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -122,5 +147,34 @@ mod tests {
         use pretty_assertions::assert_eq;
         let path = artifact_dir_path(std::path::Path::new("/repo"), "feature/x");
         assert_eq!(path, "/repo/.pi/orksorksorks/feature/x/");
+    }
+
+    #[test]
+    fn current_branch_returns_actual_branch() {
+        // Unit tests run with cwd = crate root (a git worktree), so git resolves.
+        let branch = current_branch().unwrap();
+        assert!(!branch.is_empty());
+    }
+
+    #[test]
+    fn parse_branch_output_trims_trailing_newline() {
+        use pretty_assertions::assert_eq;
+        let branch = parse_branch_output(true, "main\n", "").unwrap();
+        assert_eq!(branch, "main");
+    }
+
+    #[test]
+    fn parse_branch_output_detached_head_errors() {
+        let err = parse_branch_output(true, "", "").unwrap_err();
+        assert_eq!(err.source, "git");
+        assert!(err.message.contains("detached HEAD"), "{}", err.message);
+    }
+
+    #[test]
+    fn parse_branch_output_nonzero_exit_uses_stderr() {
+        use pretty_assertions::assert_eq;
+        let err = parse_branch_output(false, "", "fatal: not a git repository\n").unwrap_err();
+        assert_eq!(err.source, "git");
+        assert_eq!(err.message, "fatal: not a git repository");
     }
 }
