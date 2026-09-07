@@ -1,6 +1,7 @@
 use crate::errors::Error;
 use crate::git;
 use clap::{Parser, Subcommand};
+use std::path::PathBuf;
 
 const NAME: &str = env!("CARGO_PKG_NAME");
 const AUTHOR: &str = env!("CARGO_PKG_AUTHORS");
@@ -38,7 +39,11 @@ pub struct Cli {
 #[derive(Subcommand, Debug, Clone)]
 pub enum Commands {
     /// (i) Create a new orksorksorks.toml file
-    Init,
+    Init {
+        /// Write to this path instead of the default config directory
+        #[arg(short = 'c', long, value_parser = clap::value_parser!(PathBuf))]
+        config: Option<PathBuf>,
+    },
 
     /// Print the current git branch
     Branch,
@@ -51,7 +56,7 @@ pub enum Commands {
 /// Route a parsed CLI to its handler and return a success message or error.
 pub fn select_command(cli: &Cli) -> Result<String, Error> {
     match &cli.command {
-        Commands::Init => init_command(),
+        Commands::Init { config: _config } => init_command(),
         Commands::Branch => branch_command(),
         Commands::ArtifactDirectory => artifact_directory_command(),
     }
@@ -104,7 +109,7 @@ mod tests {
     fn select_command_routes_init() {
         let cli = Cli {
             json: false,
-            command: Commands::Init,
+            command: Commands::Init { config: None },
         };
         let result = select_command(&cli).unwrap();
         // Under cfg!(test) color is stripped
@@ -123,6 +128,40 @@ mod tests {
         use clap::Parser;
         let result = Cli::try_parse_from(["orksorksorks", "init"]);
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn cli_try_parse_accepts_config_short() {
+        use clap::Parser;
+        let cli = Cli::try_parse_from(["orksorksorks", "init", "-c", "/tmp/x.toml"]).unwrap();
+        match cli.command {
+            Commands::Init { config } => {
+                assert_eq!(config, Some(PathBuf::from("/tmp/x.toml")))
+            }
+            _ => panic!("expected init"),
+        }
+    }
+
+    #[test]
+    fn cli_try_parse_accepts_config_long() {
+        use clap::Parser;
+        let cli = Cli::try_parse_from(["orksorksorks", "init", "--config", "/tmp/x.toml"]).unwrap();
+        match cli.command {
+            Commands::Init { config } => {
+                assert_eq!(config, Some(PathBuf::from("/tmp/x.toml")))
+            }
+            _ => panic!("expected init"),
+        }
+    }
+
+    #[test]
+    fn cli_try_parse_init_without_config() {
+        use clap::Parser;
+        let cli = Cli::try_parse_from(["orksorksorks", "init"]).unwrap();
+        match cli.command {
+            Commands::Init { config } => assert_eq!(config, None),
+            _ => panic!("expected init"),
+        }
     }
 
     #[test]

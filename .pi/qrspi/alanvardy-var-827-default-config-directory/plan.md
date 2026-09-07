@@ -236,8 +236,8 @@ Existing `cli_try_parse_rejects_no_subcommand`, `cli_try_parse_accepts_init`, an
 
 ### Verification
 #### Automated
-- [ ] `cargo nextest run cli_try_parse` passes
-- [ ] `./scripts/test.sh` passes (Phase 1 tests still green beneath it)
+- [x] `cargo nextest run cli_try_parse` passes
+- [x] `./scripts/test.sh` passes (Phase 1 tests still green beneath it)
 
 #### Manual
 - [ ] `cargo run -- init -c /tmp/x.toml` still succeeds (flag parsed; write still lands in CWD this phase)
