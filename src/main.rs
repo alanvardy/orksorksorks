@@ -5,6 +5,9 @@
 
 #![warn(missing_docs)]
 
+mod errors;
+mod format;
+
 #[tokio::main]
 async fn main() {
     println!("Hello, world!");
