@@ -471,10 +471,10 @@ fn step_no_artifacts_present_fails() {
 
 ### Verification
 #### Automated
-- [ ] `cargo test cli_try_parse_accepts_step` and `cargo test cli_try_parse_accepts_step_with_custom_config` pass
-- [ ] `cargo test select_command_routes_step` passes
-- [ ] `cargo test step_` passes (the three integration tests)
-- [ ] `./scripts/test.sh` green (fmt → check → clippy → nextest → forbidden-strings)
+- [x] `cargo test cli_try_parse_accepts_step` and `cargo test cli_try_parse_accepts_step_with_custom_config` pass
+- [x] `cargo test select_command_routes_step` passes
+- [x] `cargo test step_` passes (the three integration tests)
+- [x] `./scripts/test.sh` green (fmt → check → clippy → nextest → forbidden-strings)
 
 #### Manual
 - [ ] In a scratch git repo: `git init -b main`, write an `orksorksorks.toml` with two `[[steps]]` and create `.pi/orksorksorks/main/second.txt`, then `cargo run -- step` prints `two` with no ANSI.
