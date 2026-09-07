@@ -152,8 +152,8 @@ existing `from_io_error_tags_io` in `src/errors.rs`, and `current_branch`'s
 ### Verification
 
 #### Automated
-- [ ] `./scripts/test.sh`
-- [ ] fast loop: `cargo nextest run --bin orksorksorks` (Phase 1 + Phase 2 tests pass)
+- [x] `./scripts/test.sh`
+- [x] fast loop: `cargo nextest run --bin orksorksorks` (Phase 1 + Phase 2 tests pass)
 
 #### Manual
 - [ ] `git branch --show-current` returns the current branch in this worktree (sanity: matches `git branch --show-current` output shape, non-empty).
