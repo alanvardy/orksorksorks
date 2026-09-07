@@ -24,6 +24,15 @@ pub struct Model {
     pub thinking: String,
 }
 
+/// A single named prompt, keyed by step name.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct Prompt {
+    /// Step name this prompt belongs to; also the lookup key.
+    pub name: String,
+    /// Full prompt text (a TOML multi-line string).
+    pub content: String,
+}
+
 /// Application configuration, serialized as TOML in `orksorksorks.toml`.
 ///
 /// The `version` field tracks the config format version so future
@@ -38,6 +47,9 @@ pub struct Config {
     /// Named models referenced by `Step::model`.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub models: Vec<Model>,
+    /// Named prompts keyed by step name, returned by the `prompt` subcommand.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub prompts: Vec<Prompt>,
 }
 
 impl Default for Config {
@@ -46,6 +58,7 @@ impl Default for Config {
             version: "0.1.0".to_string(),
             steps: Vec::new(),
             models: Vec::new(),
+            prompts: Vec::new(),
         }
     }
 }
@@ -112,6 +125,7 @@ mod tests {
                 },
             ],
             models: vec![],
+            prompts: vec![],
         };
         let serialized = toml::to_string(&config).unwrap();
         let deserialized: Config = toml::from_str(&serialized).unwrap();
@@ -123,6 +137,7 @@ mod tests {
         let config: Config = toml::from_str("version = \"0.1.0\"\n").unwrap();
         assert!(config.steps.is_empty());
         assert!(config.models.is_empty());
+        assert!(config.prompts.is_empty());
     }
 
     #[test]
@@ -142,6 +157,48 @@ mod tests {
     }
 
     #[test]
+    fn prompts_round_trip() {
+        let config = Config {
+            version: "0.1.0".to_string(),
+            steps: vec![],
+            models: vec![],
+            prompts: vec![Prompt {
+                name: "questions".to_string(),
+                content: "# Question — Decompose the Task\n\nSome body.\n".to_string(),
+            }],
+        };
+        let serialized = toml::to_string(&config).unwrap();
+        let deserialized: Config = toml::from_str(&serialized).unwrap();
+        assert_eq!(config, deserialized);
+    }
+
+    #[test]
+    fn read_config_loads_prompts_from_disk() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("orksorksorks.toml");
+        std::fs::write(
+            &path,
+            concat!(
+                "version = \"0.1.0\"\n",
+                "[[prompts]]\n",
+                "name = \"questions\"\n",
+                "content = \"\"\"\n",
+                "# Question — Decompose the Task\n",
+                "\"\"\"\n",
+            ),
+        )
+        .unwrap();
+        let config = read_config(&path).unwrap();
+        assert_eq!(config.prompts.len(), 1);
+        assert_eq!(config.prompts[0].name, "questions");
+        assert!(
+            config.prompts[0].content.contains("Decompose the Task"),
+            "{}",
+            config.prompts[0].content
+        );
+    }
+
+    #[test]
     fn models_round_trip() {
         let config = Config {
             version: "0.1.0".to_string(),
@@ -151,6 +208,7 @@ mod tests {
                 model: "openrouter/deepseek/flash".to_string(),
                 thinking: "high".to_string(),
             }],
+            prompts: vec![],
         };
         let serialized = toml::to_string(&config).unwrap();
         let deserialized: Config = toml::from_str(&serialized).unwrap();

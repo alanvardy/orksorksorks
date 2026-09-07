@@ -199,3 +199,143 @@ fn model_without_flag_reads_config_dir() {
         "openrouter/deepseek/flash"
     );
 }
+
+#[test]
+fn thinking_prints_thinking_for_current_step() {
+    let dir = init_git_repo();
+    write_config(dir.path());
+    let artifact_dir = artifact_dir(dir.path());
+    std::fs::create_dir_all(&artifact_dir).unwrap();
+    std::fs::write(artifact_dir.join("second.txt"), "").unwrap();
+
+    let mut cmd = Command::cargo_bin("orksorksorks").unwrap();
+    let output = cmd
+        .args(["thinking", "--config", "orksorksorks.toml"])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+    cmd.assert().success();
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert_eq!(stdout.trim_end_matches('\x07').trim_end(), "high");
+    assert!(!stdout.contains('\x1b'), "stdout: {stdout}");
+}
+
+#[test]
+fn thinking_uses_manifest_trigger_step() {
+    let dir = init_git_repo();
+    write_config(dir.path());
+    let artifact_dir = artifact_dir(dir.path());
+    std::fs::create_dir_all(&artifact_dir).unwrap();
+    std::fs::write(artifact_dir.join("first.txt"), "").unwrap();
+
+    let mut cmd = Command::cargo_bin("orksorksorks").unwrap();
+    let output = cmd
+        .args(["thinking", "--config", "orksorksorks.toml"])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+    cmd.assert().success();
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert_eq!(stdout.trim_end_matches('\x07').trim_end(), "high");
+}
+
+#[test]
+fn thinking_json_returns_valid_json_with_no_ansi() {
+    let dir = init_git_repo();
+    write_config(dir.path());
+    let artifact_dir = artifact_dir(dir.path());
+    std::fs::create_dir_all(&artifact_dir).unwrap();
+    std::fs::write(artifact_dir.join("second.txt"), "").unwrap();
+
+    let mut cmd = Command::cargo_bin("orksorksorks").unwrap();
+    let output = cmd
+        .args(["thinking", "--config", "orksorksorks.toml", "-j"])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+    cmd.assert().success();
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let v: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    assert_eq!(v["data"].as_str(), Some("high"));
+    assert!(!stdout.contains('\x1b'), "stdout: {stdout}");
+}
+
+#[test]
+fn thinking_no_artifacts_present_fails() {
+    let dir = init_git_repo();
+    write_config(dir.path());
+
+    Command::cargo_bin("orksorksorks")
+        .unwrap()
+        .args(["thinking", "--config", "orksorksorks.toml"])
+        .current_dir(dir.path())
+        .assert()
+        .failure();
+}
+
+#[test]
+fn thinking_unknown_model_reference_fails() {
+    let dir = init_git_repo();
+    std::fs::write(
+        dir.path().join("orksorksorks.toml"),
+        concat!(
+            "version = \"0.1.0\"\n",
+            "[[steps]]\n",
+            "name = \"one\"\n",
+            "trigger_artifact = \"first.txt\"\n",
+            "model = \"nope\"\n",
+        ),
+    )
+    .unwrap();
+    let artifact_dir = artifact_dir(dir.path());
+    std::fs::create_dir_all(&artifact_dir).unwrap();
+    std::fs::write(artifact_dir.join("first.txt"), "").unwrap();
+
+    Command::cargo_bin("orksorksorks")
+        .unwrap()
+        .args(["thinking", "--config", "orksorksorks.toml"])
+        .current_dir(dir.path())
+        .assert()
+        .failure();
+}
+
+#[test]
+fn thinking_without_flag_reads_config_dir() {
+    let dir = init_git_repo();
+    let xdg = tempfile::tempdir().unwrap();
+    let config_dir = xdg.path().join("cfg");
+    std::fs::create_dir_all(&config_dir).unwrap();
+    std::fs::write(
+        config_dir.join("orksorksorks.toml"),
+        concat!(
+            "version = \"0.1.0\"\n",
+            "[[steps]]\n",
+            "name = \"one\"\n",
+            "trigger_artifact = \"first.txt\"\n",
+            "model = \"small\"\n",
+            "[[models]]\n",
+            "name = \"small\"\n",
+            "model = \"openrouter/deepseek/flash\"\n",
+            "thinking = \"high\"\n",
+        ),
+    )
+    .unwrap();
+    let artifact_dir = artifact_dir(dir.path());
+    std::fs::create_dir_all(&artifact_dir).unwrap();
+    std::fs::write(artifact_dir.join("first.txt"), "").unwrap();
+
+    let mut cmd = Command::cargo_bin("orksorksorks").unwrap();
+    let output = cmd
+        .arg("thinking")
+        .current_dir(dir.path())
+        .env("XDG_CONFIG_HOME", &config_dir)
+        .output()
+        .unwrap();
+    cmd.assert().success();
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert_eq!(stdout.trim_end_matches('\x07').trim_end(), "high");
+}

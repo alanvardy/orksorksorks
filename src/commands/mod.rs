@@ -68,6 +68,27 @@ pub enum Commands {
         #[arg(long, value_name = "CONFIG")]
         config: Option<PathBuf>,
     },
+
+    /// Print the thinking budget for the current step (from `config.models`)
+    Thinking {
+        /// Path to the TOML config file; defaults to the config directory
+        /// (the same resolution as `init`)
+        #[arg(long, value_name = "CONFIG")]
+        config: Option<PathBuf>,
+    },
+
+    /// Print the prompt for the current step (from `config.prompts`)
+    Prompt {
+        /// Step name override; defaults to the current step derived from
+        /// present trigger artifacts
+        #[arg(value_name = "STEP_NAME")]
+        step_name: Option<String>,
+
+        /// Path to the TOML config file; defaults to the config directory
+        /// (the same resolution as `init`)
+        #[arg(long, value_name = "CONFIG")]
+        config: Option<PathBuf>,
+    },
 }
 
 /// Route a parsed CLI to its handler, injecting `env` for config-dir resolution.
@@ -87,6 +108,14 @@ fn select_command_with_env(cli: &Cli, env: &crate::config_dir::ConfigEnv) -> Res
         Commands::Model { config } => {
             let path = crate::config_dir::config_file_path(config.as_deref())?;
             model_command(&path)
+        }
+        Commands::Thinking { config } => {
+            let path = crate::config_dir::config_file_path(config.as_deref())?;
+            thinking_command(&path)
+        }
+        Commands::Prompt { step_name, config } => {
+            let path = crate::config_dir::config_file_path(config.as_deref())?;
+            prompt_command(&path, step_name.clone())
         }
     }
 }
@@ -173,11 +202,12 @@ fn determine_step(config: &Config, artifact_dir: &str) -> Result<Step, Error> {
 }
 
 /// Look up the named model (the current step's `model` reference) in
-/// `config.models` and return its concrete `model` value.
-fn resolve_model(config: &Config, name: &str) -> Result<String, Error> {
+/// `config.models` and return the matching entry, so callers like `model`
+/// and `thinking` can read different fields (`model` vs `thinking`).
+fn resolve_model(config: &Config, name: &str) -> Result<crate::config::Model, Error> {
     for m in config.models.iter() {
         if m.name == name {
-            return Ok(m.model.clone());
+            return Ok(m.clone());
         }
     }
     Err(Error::new("model", &format!("no model named {name:?}")))
@@ -209,7 +239,48 @@ fn model_command(path: &std::path::Path) -> Result<String, Error> {
     let cwd = std::env::current_dir()?;
     let artifact_dir = artifact_dir_path(&cwd, &git::current_branch()?);
     let step = determine_step(&cfg, &artifact_dir)?;
-    resolve_model(&cfg, &step.model)
+    let model = resolve_model(&cfg, &step.model)?;
+    Ok(model.model)
+}
+
+/// Handle the `thinking` subcommand: determine the current step, read the
+/// model *name* it references, and resolve that name against `config.models`
+/// to its thinking-budget value.
+fn thinking_command(path: &std::path::Path) -> Result<String, Error> {
+    let cfg = crate::config::read_config(path)?;
+    let cwd = std::env::current_dir()?;
+    let artifact_dir = artifact_dir_path(&cwd, &git::current_branch()?);
+    let step = determine_step(&cfg, &artifact_dir)?;
+    let model = resolve_model(&cfg, &step.model)?;
+    Ok(model.thinking)
+}
+
+/// Look up the named prompt (a `config.prompts` key, usually a step name)
+/// and return its content.
+fn resolve_prompt(config: &Config, name: &str) -> Result<String, Error> {
+    for p in config.prompts.iter() {
+        if p.name == name {
+            return Ok(p.content.clone());
+        }
+    }
+    Err(Error::new("prompt", &format!("no prompt named {name:?}")))
+}
+
+/// Handle the `prompt` subcommand: read the config and return the prompt
+/// content for the current step, or for the explicitly named step when
+/// `step_name` is provided as an override.
+fn prompt_command(path: &std::path::Path, step_name: Option<String>) -> Result<String, Error> {
+    let cfg = crate::config::read_config(path)?;
+    let name = if let Some(name) = step_name {
+        name
+    } else {
+        // No explicit step: derive the current step from trigger artifacts,
+        // exactly like `step`/`model`/`thinking`.
+        let cwd = std::env::current_dir()?;
+        let artifact_dir = artifact_dir_path(&cwd, &git::current_branch()?);
+        determine_step(&cfg, &artifact_dir)?.name
+    };
+    resolve_prompt(&cfg, &name)
 }
 
 #[cfg(test)]
@@ -363,6 +434,7 @@ mod tests {
                 },
             ],
             models: vec![],
+            prompts: vec![],
         };
         let artifact_dir = format!("{}/", dir.path().display());
         assert_eq!(determine_step(&config, &artifact_dir).unwrap().name, "one");
@@ -388,6 +460,7 @@ mod tests {
                 },
             ],
             models: vec![],
+            prompts: vec![],
         };
         let artifact_dir = format!("{}/", dir.path().display());
         assert_eq!(determine_step(&config, &artifact_dir).unwrap().name, "two");
@@ -411,6 +484,7 @@ mod tests {
                 },
             ],
             models: vec![],
+            prompts: vec![],
         };
         let artifact_dir = format!("{}/", dir.path().display());
         assert_eq!(
@@ -438,6 +512,7 @@ mod tests {
                 },
             ],
             models: vec![],
+            prompts: vec![],
         };
         let artifact_dir = format!("{}/", dir.path().display());
         assert_eq!(determine_step(&config, &artifact_dir).unwrap().name, "one");
@@ -464,6 +539,7 @@ mod tests {
                 },
             ],
             models: vec![],
+            prompts: vec![],
         };
         let artifact_dir = format!("{}/", dir.path().display());
         assert_eq!(determine_step(&config, &artifact_dir).unwrap().name, "two");
@@ -487,6 +563,7 @@ mod tests {
                 },
             ],
             models: vec![],
+            prompts: vec![],
         };
         let artifact_dir = format!("{}/", dir.path().display());
         assert_eq!(determine_step(&config, &artifact_dir).unwrap().name, "two");
@@ -548,6 +625,7 @@ mod tests {
                 model: "small".to_string(),
             }],
             models: vec![],
+            prompts: vec![],
         };
         let artifact_dir = format!("{}/", dir.path().display());
         let err = determine_step(&config, &artifact_dir).unwrap_err();
@@ -569,11 +647,13 @@ mod tests {
                 model: "openrouter/deepseek/flash".to_string(),
                 thinking: "high".to_string(),
             }],
+            prompts: vec![],
         };
         assert_eq!(
-            resolve_model(&config, "small").unwrap(),
+            resolve_model(&config, "small").unwrap().model,
             "openrouter/deepseek/flash",
         );
+        assert_eq!(resolve_model(&config, "small").unwrap().thinking, "high");
     }
 
     #[test]
@@ -586,6 +666,7 @@ mod tests {
                 model: "openrouter/deepseek/flash".to_string(),
                 thinking: "high".to_string(),
             }],
+            prompts: vec![],
         };
         let err = resolve_model(&config, "large").unwrap_err();
         assert_eq!(err.source, "model");
@@ -604,6 +685,22 @@ mod tests {
         };
         // model_command reads the (missing) config first → "io", proving the
         // arm dispatched to model_command.
+        let err = select_command(&cli).unwrap_err();
+        assert_eq!(err.source, "io");
+    }
+
+    #[test]
+    fn select_command_routes_thinking() {
+        let cli = Cli {
+            json: false,
+            command: Commands::Thinking {
+                config: Some(std::path::PathBuf::from(
+                    "definitely-missing-config-file.toml",
+                )),
+            },
+        };
+        // thinking_command reads the (missing) config first → "io", proving
+        // the arm dispatched to thinking_command.
         let err = select_command(&cli).unwrap_err();
         assert_eq!(err.source, "io");
     }
@@ -636,5 +733,141 @@ mod tests {
             }
             _ => panic!("expected Commands::Model"),
         }
+    }
+
+    #[test]
+    fn cli_try_parse_accepts_thinking() {
+        use clap::Parser;
+        let result = Cli::try_parse_from(["orksorksorks", "thinking"]);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn cli_try_parse_thinking_without_config_is_none() {
+        use clap::Parser;
+        let cli = Cli::try_parse_from(["orksorksorks", "thinking"]).unwrap();
+        match cli.command {
+            Commands::Thinking { config } => assert_eq!(config, None),
+            _ => panic!("expected Commands::Thinking"),
+        }
+    }
+
+    #[test]
+    fn cli_try_parse_thinking_with_custom_config() {
+        use clap::Parser;
+        let cli =
+            Cli::try_parse_from(["orksorksorks", "thinking", "--config", "custom.toml"]).unwrap();
+        match cli.command {
+            Commands::Thinking { config } => {
+                assert_eq!(config, Some(std::path::PathBuf::from("custom.toml")));
+            }
+            _ => panic!("expected Commands::Thinking"),
+        }
+    }
+
+    #[test]
+    fn cli_try_parse_accepts_prompt() {
+        use clap::Parser;
+        let result = Cli::try_parse_from(["orksorksorks", "prompt", "questions"]);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn cli_try_parse_prompt_without_step_name_derives_automatically() {
+        use clap::Parser;
+        let cli = Cli::try_parse_from(["orksorksorks", "prompt"]).unwrap();
+        match cli.command {
+            Commands::Prompt { step_name, config } => {
+                assert_eq!(step_name, None);
+                assert_eq!(config, None);
+            }
+            _ => panic!("expected Commands::Prompt"),
+        }
+    }
+
+    #[test]
+    fn cli_try_parse_prompt_reads_step_name() {
+        use clap::Parser;
+        let cli = Cli::try_parse_from(["orksorksorks", "prompt", "design"]).unwrap();
+        match cli.command {
+            Commands::Prompt { step_name, config } => {
+                assert_eq!(step_name, Some("design".to_string()));
+                assert_eq!(config, None);
+            }
+            _ => panic!("expected Commands::Prompt"),
+        }
+    }
+
+    #[test]
+    fn cli_try_parse_prompt_with_custom_config() {
+        use clap::Parser;
+        let cli = Cli::try_parse_from([
+            "orksorksorks",
+            "prompt",
+            "questions",
+            "--config",
+            "custom.toml",
+        ])
+        .unwrap();
+        match cli.command {
+            Commands::Prompt { step_name, config } => {
+                assert_eq!(step_name, Some("questions".to_string()));
+                assert_eq!(config, Some(std::path::PathBuf::from("custom.toml")));
+            }
+            _ => panic!("expected Commands::Prompt"),
+        }
+    }
+
+    #[test]
+    fn select_command_routes_prompt() {
+        // step_name None — the primary auto-derive mode: dispatch still
+        // happens before any git/artifact logic, so the missing config
+        // error proves the arm reached prompt_command.
+        let cli = Cli {
+            json: false,
+            command: Commands::Prompt {
+                step_name: None,
+                config: Some(std::path::PathBuf::from(
+                    "definitely-missing-config-file.toml",
+                )),
+            },
+        };
+        // prompt_command reads the (missing) config first → "io", proving
+        // the arm dispatched to prompt_command.
+        let err = select_command(&cli).unwrap_err();
+        assert_eq!(err.source, "io");
+    }
+
+    #[test]
+    fn resolve_prompt_returns_content_for_matching_name() {
+        let config = Config {
+            version: "0.1.0".to_string(),
+            steps: vec![],
+            models: vec![],
+            prompts: vec![crate::config::Prompt {
+                name: "questions".to_string(),
+                content: "# Question — Decompose the Task\n".to_string(),
+            }],
+        };
+        assert_eq!(
+            resolve_prompt(&config, "questions").unwrap(),
+            "# Question — Decompose the Task\n",
+        );
+    }
+
+    #[test]
+    fn resolve_prompt_missing_name_errors_with_prompt_tag() {
+        let config = Config {
+            version: "0.1.0".to_string(),
+            steps: vec![],
+            models: vec![],
+            prompts: vec![crate::config::Prompt {
+                name: "questions".to_string(),
+                content: String::new(),
+            }],
+        };
+        let err = resolve_prompt(&config, "research").unwrap_err();
+        assert_eq!(err.source, "prompt");
+        assert!(err.message.contains("no prompt named"), "{}", err.message);
     }
 }
