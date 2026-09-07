@@ -83,13 +83,24 @@ fn artifact_dir_path(cwd: &std::path::Path, branch: &str) -> String {
     )
 }
 
-/// Resolve the current git branch by invoking `git branch --show-current`.
+/// Resolve the current git branch by invoking `git branch --show-current` in
+/// the process working directory.
 ///
 /// A failed spawn (git not on PATH) rides the existing `From<std::io::Error>`
 /// → `"io"` tag; git-level failures use `Error::new("git", ...)`.
 fn current_branch() -> Result<String, Error> {
+    current_branch_in(&std::env::current_dir()?)
+}
+
+/// Resolve the git branch by running `git branch --show-current` in `dir`.
+///
+/// Testable in isolation: callers pass an explicit directory so unit tests can
+/// point at a disposable repo instead of the ambient checkout (CI checks out
+/// in detached HEAD, where `--show-current` is empty).
+fn current_branch_in(dir: &std::path::Path) -> Result<String, Error> {
     let output = std::process::Command::new("git")
         .args(["branch", "--show-current"])
+        .current_dir(dir)
         .output()?;
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
@@ -156,26 +167,6 @@ mod tests {
     }
 
     #[test]
-    fn select_command_routes_branch() {
-        let cli = Cli {
-            json: false,
-            command: Commands::Branch,
-        };
-        let result = select_command(&cli).unwrap();
-        assert!(!result.is_empty());
-    }
-
-    #[test]
-    fn select_command_routes_artifact_directory() {
-        let cli = Cli {
-            json: false,
-            command: Commands::ArtifactDirectory,
-        };
-        let result = select_command(&cli).unwrap();
-        assert!(!result.is_empty());
-    }
-
-    #[test]
     fn cli_try_parse_accepts_branch() {
         use clap::Parser;
         let result = Cli::try_parse_from(["orksorksorks", "branch"]);
@@ -230,11 +221,56 @@ mod tests {
         assert_eq!(path, "/repo/.pi/orksorksorks/main/");
     }
 
+    /// Create a disposable git repo with one commit on `branch`.
+    ///
+    /// Keeps git-dependent tests hermetic: CI's `actions/checkout` leaves the
+    /// tree in detached HEAD (empty `branch --show-current`), so the ambient
+    /// checkout cannot be used as a source of truth.
+    fn init_git_branch(dir: &std::path::Path, branch: &str) {
+        let run = |args: &[&str]| {
+            let out = std::process::Command::new("git")
+                .args(args)
+                .current_dir(dir)
+                .output()
+                .unwrap();
+            assert!(out.status.success(), "git {args:?} failed");
+        };
+        run(&["init"]);
+        run(&["checkout", "-b", branch]);
+        std::fs::write(dir.join("README"), "x").unwrap();
+        run(&["add", "."]);
+        run(&[
+            "-c",
+            "user.name=t",
+            "-c",
+            "user.email=t@t",
+            "commit",
+            "-qm",
+            "init",
+        ]);
+    }
+
     #[test]
-    fn current_branch_returns_actual_branch() {
-        // Unit tests run with cwd = crate root (a git worktree), so git resolves.
-        let branch = current_branch().unwrap();
-        assert!(!branch.is_empty());
+    fn current_branch_in_returns_configured_branch() {
+        use pretty_assertions::assert_eq;
+        let temp = tempfile::tempdir().unwrap();
+        init_git_branch(temp.path(), "feature/foo");
+        assert_eq!(current_branch_in(temp.path()).unwrap(), "feature/foo");
+    }
+
+    #[test]
+    fn current_branch_in_detached_head_errors() {
+        let temp = tempfile::tempdir().unwrap();
+        init_git_branch(temp.path(), "main");
+        let detach = std::process::Command::new("git")
+            .args(["checkout", "--detach"])
+            .current_dir(temp.path())
+            .output()
+            .unwrap();
+        assert!(detach.status.success());
+        let err = current_branch_in(temp.path()).unwrap_err();
+        assert_eq!(err.source, "git");
+        assert!(err.message.contains("detached HEAD"), "{}", err.message);
     }
 
     #[test]
@@ -257,24 +293,5 @@ mod tests {
         let err = parse_branch_output(false, "", "fatal: not a git repository\n").unwrap_err();
         assert_eq!(err.source, "git");
         assert_eq!(err.message, "fatal: not a git repository");
-    }
-
-    #[test]
-    fn branch_command_returns_plain_non_empty() {
-        let branch = branch_command().unwrap();
-        assert!(!branch.is_empty());
-        assert!(!branch.contains('\x1b'), "{branch}");
-    }
-
-    #[test]
-    fn artifact_directory_command_composes_cwd_and_branch() {
-        use pretty_assertions::assert_eq;
-        let result = artifact_directory_command().unwrap();
-        let cwd = std::env::current_dir().unwrap();
-        let branch = current_branch().unwrap();
-        let expected = artifact_dir_path(&cwd, &branch);
-        assert_eq!(result, expected);
-        assert!(!result.is_empty());
-        assert!(!result.contains('\x1b'), "{result}");
     }
 }
