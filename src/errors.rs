@@ -54,6 +54,15 @@ impl From<toml::ser::Error> for Error {
     }
 }
 
+impl From<toml::de::Error> for Error {
+    fn from(e: toml::de::Error) -> Self {
+        Self {
+            source: "toml::de".to_string(),
+            message: e.to_string(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -88,6 +97,20 @@ mod tests {
         let toml_err = toml::to_string(&AlwaysFail).unwrap_err();
         let err = Error::from(toml_err);
         assert_eq!(err.source, "toml::ser");
+    }
+
+    #[test]
+    fn from_toml_de_error_tags_toml_de() {
+        #[derive(serde::Deserialize)]
+        struct NeedsAField {
+            #[allow(dead_code)]
+            required: String,
+        }
+        let toml_err = toml::from_str::<NeedsAField>("missing = \"nope\"")
+            .err()
+            .unwrap();
+        let err = Error::from(toml_err);
+        assert_eq!(err.source, "toml::de");
     }
 
     #[test]
