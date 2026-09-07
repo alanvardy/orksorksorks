@@ -1,0 +1,36 @@
+name: Test
+
+on:
+  workflow_call:
+    inputs:
+      upload-coverage:
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest,cargo-llvm-cov
+      - name: cargo nextest run
+        run: cargo nextest run --profile ci --all-features --no-tests pass
+      - name: coverage (main only)
+        if: inputs.upload-coverage
+        run: cargo llvm-cov nextest --profile ci --all-features --lcov --output-path lcov.info
+      - name: upload coverage
+        if: inputs.upload-coverage
+        uses: codecov/codecov-action@v5
+        with:
+          files: lcov.info
+      - name: upload test results
+        if: inputs.upload-coverage
+        uses: codecov/test-results-action@v1
+        with:
+          files: target/nextest/ci/junit.xml

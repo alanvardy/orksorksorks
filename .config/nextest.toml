@@ -1,0 +1,9 @@
+[profile.ci]
+retries = 2
+fail-fast = false
+slow-timeout = { period = "60s" }
+
+[profile.ci.junit]
+path = "target/nextest/ci/junit.xml"
+store-success-output = false
+store-failure-output = true
