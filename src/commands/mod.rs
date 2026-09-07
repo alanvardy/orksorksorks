@@ -72,10 +72,15 @@ fn init_command() -> Result<String, Error> {
 
 /// Compose the artifact-directory path from a cwd and a branch name.
 ///
-/// Pure — no git, no I/O, no error path. The trailing slash is part of the
-/// contract (see `task.md`).
+/// Slashes in the branch name are normalized to hyphens so the branch is a
+/// single path segment. Pure — no git, no I/O, no error path. The trailing
+/// slash is part of the contract (see `task.md`).
 fn artifact_dir_path(cwd: &std::path::Path, branch: &str) -> String {
-    format!("{}/.pi/orksorksorks/{}/", cwd.display(), branch)
+    format!(
+        "{}/.pi/orksorksorks/{}/",
+        cwd.display(),
+        branch.replace('/', "-")
+    )
 }
 
 /// Resolve the current git branch by invoking `git branch --show-current`.
@@ -208,7 +213,21 @@ mod tests {
     fn artifact_dir_path_handles_branch_with_slashes() {
         use pretty_assertions::assert_eq;
         let path = artifact_dir_path(std::path::Path::new("/repo"), "feature/x");
-        assert_eq!(path, "/repo/.pi/orksorksorks/feature/x/");
+        assert_eq!(path, "/repo/.pi/orksorksorks/feature-x/");
+    }
+
+    #[test]
+    fn artifact_dir_path_replaces_all_slashes() {
+        use pretty_assertions::assert_eq;
+        let path = artifact_dir_path(std::path::Path::new("/repo"), "a/b/c");
+        assert_eq!(path, "/repo/.pi/orksorksorks/a-b-c/");
+    }
+
+    #[test]
+    fn artifact_dir_path_leaves_slashless_branch_unchanged() {
+        use pretty_assertions::assert_eq;
+        let path = artifact_dir_path(std::path::Path::new("/repo"), "main");
+        assert_eq!(path, "/repo/.pi/orksorksorks/main/");
     }
 
     #[test]
