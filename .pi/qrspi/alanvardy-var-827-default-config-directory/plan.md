@@ -513,9 +513,9 @@ fn init_no_json_prints_plain_text() {
 
 ### Verification
 #### Automated
-- [ ] `cargo nextest run init_with` passes (override + config-dir-tag tests)
-- [ ] `cargo nextest run json_output` passes (JSON validity + ANSI-free regression)
-- [ ] `./scripts/test.sh` passes end-to-end
+- [x] `cargo nextest run init_with` passes (override + config-dir-tag tests)
+- [x] `cargo nextest run json_output` passes (JSON validity + ANSI-free regression)
+- [x] `./scripts/test.sh` passes end-to-end
 
 #### Manual
 - [ ] `cargo run -- init --config /tmp/foo.toml` then `cat /tmp/foo.toml` shows `version = "0.1.0"`
