@@ -55,12 +55,12 @@ cargo check &&
 echo "=== CLIPPY ===" &&
 cargo clippy --tests -- -D warnings &&
 echo "=== TEST ===" &&
-cargo nextest run --no-tests &&
+cargo nextest run --no-tests=pass &&
 echo "=== FORGOTTEN TODOS ===" &&
 # Requires ripgrep
 if rg -i -g '*.rs' 'TODO:|todo:|FIXME|fixme|dbg!|DEBUG:|FIXTURE:|TODO\s|todo\s' .; then
     exit 1
-fi
+fi &&
 echo "=== SUCCESS ===" &&
 echo "=== Done ===."
 ```
@@ -75,15 +75,19 @@ echo "=== Done ===."
 | 4 | Strip `./scripts/testcfg_clean.sh` and `=== CLEANING FILES ===` | Inert script, no `.testcfg` fixtures exist, not in scope |
 | 5 | Keep two-AND-chain shape (`fmt→check→clippy→nextest→rg-guard` then `SUCCESS/Done`) but now `set -e` guards both | Preserves familiar structure; `set -e` is the behavioral fix |
 
+> **Approved deviations (user-confirmed, main agent appended):**
+> 1. `cargo nextest run --no-tests` → `cargo nextest run --no-tests=pass` — installed nextest 0.9.143 requires a value for `--no-tests <ACTION>`; `pass` is the plan's stated intent (tolerate zero tests).
+> 2. `fi` → `fi &&` — with `set -e`, the `echo "=== SUCCESS ==="` statement outside the AND-chain ran unconditionally and reset the exit status to 0, so fmt/check/clippy/test failures printed SUCCESS and exited 0 (verified empirically). Joining the banner into the chain makes the gate fail on real problems (compile error → exit 101, `dbg!` → exit 1) while keeping the two-AND-chain shape. All Phase 2 automated checks re-verified after the fix.
+
 #### 2. No other files
 No `src/` changes. No `Cargo.toml` changes. No `testcfg_clean.sh` created.
 
 ### Verification
 
 #### Automated
-- [ ] `./scripts/test.sh` exits 0 on the clean crate (all steps pass, `=== SUCCESS ===` / `=== Done ===.` printed)
-- [ ] Inject `dbg!("test");` into `src/main.rs`, run `./scripts/test.sh` → exits 1, forbidden-string grep catches it
-- [ ] Remove the injection, run `./scripts/test.sh` → exits 0 again (proves the guard resets)
+- [x] `./scripts/test.sh` exits 0 on the clean crate (all steps pass, `=== SUCCESS ===` / `=== Done ===.` printed)
+- [x] Inject `dbg!("test");` into `src/main.rs`, run `./scripts/test.sh` → exits 1, forbidden-string grep catches it
+- [x] Remove the injection, run `./scripts/test.sh` → exits 0 again (proves the guard resets)
 
 #### Manual
 - [ ] Script has `set -euo pipefail` at line 2
