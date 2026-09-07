@@ -23,10 +23,6 @@ pub fn yellow_string(s: &str) -> String {
     apply_color(s, Color::Yellow)
 }
 
-pub fn cyan_string(s: &str) -> String {
-    apply_color(s, Color::Cyan)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -48,18 +44,12 @@ mod tests {
     }
 
     #[test]
-    fn cyan_string_is_plain() {
-        assert_eq!(cyan_string("info"), "info");
-    }
-
-    #[test]
     fn all_helpers_strip_ansi_under_test() {
         // cfg!(test) is true here; all should return plain strings
         for input in &["hello", "✓", "error text"] {
             assert!(!green_string(input).contains('\x1b'));
             assert!(!red_string(input).contains('\x1b'));
             assert!(!yellow_string(input).contains('\x1b'));
-            assert!(!cyan_string(input).contains('\x1b'));
         }
     }
 }

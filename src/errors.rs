@@ -1,7 +1,7 @@
 use serde::Serialize;
 use std::fmt;
 
-/// The central error type for orksworksorks.
+/// The central error type for orksorksorks.
 ///
 /// `source` is a lowercase tag (e.g. `"io"`, `"toml::ser"`) and `message`
 /// is the human-readable description.  `Display` owns all coloring —

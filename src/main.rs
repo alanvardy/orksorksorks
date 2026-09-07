@@ -1,11 +1,12 @@
-//! orksworksorks — conventions CLI.
+//! orksorksorks — conventions CLI.
 //!
 //! Ships the convention spine (typed errors, colored output, JSON envelope,
-//! TOML config) behind the `orksworksorks init` command.
+//! TOML config) behind the `orksorksorks init` command.
 
 #![warn(missing_docs)]
 
 mod commands;
+mod config;
 mod errors;
 mod format;
 

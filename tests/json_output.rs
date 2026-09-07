@@ -9,7 +9,10 @@ fn init_json_returns_valid_json_with_data_field() {
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains(r#""data""#), "stdout: {stdout}");
-    assert!(stdout.contains("✓ init stub"), "stdout: {stdout}");
+    assert!(
+        stdout.contains("✓ Created orksorksorks.toml"),
+        "stdout: {stdout}"
+    );
     // Valid JSON
     let _: serde_json::Value = serde_json::from_str(&stdout).unwrap();
 }
@@ -22,7 +25,10 @@ fn init_no_json_prints_plain_text() {
     cmd.assert().success();
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("✓ init stub"), "stdout: {stdout}");
+    assert!(
+        stdout.contains("✓ Created orksorksorks.toml"),
+        "stdout: {stdout}"
+    );
     assert!(
         !stdout.contains('\x1b'),
         "stdout should have no ANSI: {stdout}"
