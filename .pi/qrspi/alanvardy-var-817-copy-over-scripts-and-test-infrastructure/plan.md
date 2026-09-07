@@ -31,7 +31,7 @@ This is the same structure as `tod/rust-toolchain.toml` with the channel bumped 
 
 #### Manual
 - [ ] File exists at repo root with correct channel and components
-- [ ] `rustup show active toolchain` prints `1.98.1-aarch64-apple-darwin (directory override for '/Users/vardy/dev/alanvardy-var-817-copy-over-scripts-and-test-infrastructure')`
+- [ ] `rustup show active-toolchain` prints `1.98.1-aarch64-apple-darwin (overridden by '.../rust-toolchain.toml')` (rustup 1.29.1 wording; the plan's original "directory override" phrasing is from an older rustup)
 
 ---
 
@@ -91,7 +91,7 @@ No `src/` changes. No `Cargo.toml` changes. No `testcfg_clean.sh` created.
 
 #### Manual
 - [ ] Script has `set -euo pipefail` at line 2
-- [ ] Script has `cargo nextest run --no-tests` (not bare `cargo nextest run`)
+- [ ] Script has `cargo nextest run --no-tests=pass` (not bare `cargo nextest run`; aligns with approved deviation #1)
 - [ ] Script has `rg -i -g` (no `-s` flag)
 - [ ] Script does NOT invoke `testcfg_clean.sh` or print `=== CLEANING FILES ===`
 
@@ -137,14 +137,14 @@ coverage:
 ### Verification
 
 #### Automated
-- [ ] File parses as valid YAML: `python3 -c "import yaml; yaml.safe_load(open('codecov.yml'))"` exits 0 with no error
-- [ ] Expected keys present:
+- [x] File parses as valid YAML: `python3 -c "import yaml; yaml.safe_load(open('codecov.yml'))"` exits 0 with no error
+- [x] Expected keys present:
   ```bash
   grep -c 'project:' codecov.yml   # ≥ 1
   grep -c 'patch:' codecov.yml     # ≥ 1
   grep -c 'layout:' codecov.yml    # ≥ 1
   ```
-- [ ] No `ignore:` key present:
+- [x] No `ignore:` key present:
   ```bash
   grep -c 'ignore:' codecov.yml    # 0 (must be absent)
   ```
@@ -159,15 +159,17 @@ coverage:
 
 ## Final Cross-Check
 
-After all three phases are complete:
+After all three phases are complete (all verified by main agent on 2026-09-06):
 
-- [ ] `./scripts/test.sh` exits 0 (proves toolchain pin + gate work together)
-- [ ] `rustup show | grep "directory override" | grep "1.98.1"` still passes (pin intact)
-- [ ] `python3 -c "import yaml; yaml.safe_load(open('codecov.yml'))"` still exits 0
-- [ ] `git status` shows exactly 3 new files (no `src/` or `Cargo.toml` changes):
+- [x] `./scripts/test.sh` exits 0 (proves toolchain pin + gate work together)
+- [x] `rustup show | grep "overridden" | grep "1.98.1"` passes (pin intact; wording adapted — rustup 1.29.1 prints `overridden by`, not `directory override`)
+- [x] `python3 -c "import yaml; yaml.safe_load(open('codecov.yml'))"` still exits 0
+- [x] `git status` shows only the 3 new files (no `src/` or `Cargo.toml` changes; verified via `git diff cf01f01..HEAD -- src/ Cargo.toml` = empty, and worktree clean aside from QRSPI process docs):
   - `rust-toolchain.toml`
   - `scripts/test.sh`
   - `codecov.yml`
+
+> **Note:** `cargo` regenerates an untracked `Cargo.lock` on every invocation; it was removed to satisfy the 3-file cross-check above. The repo owners should decide later whether to commit it (binary-crate convention) or add it to `.gitignore` — out of scope for this plan.
 
 ## What this plan intentionally excludes
 
