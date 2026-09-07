@@ -9,6 +9,7 @@ mod commands;
 mod config;
 mod errors;
 mod format;
+mod git;
 
 use clap::Parser;
 use errors::Error;
