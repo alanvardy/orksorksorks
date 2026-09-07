@@ -9,6 +9,19 @@ pub struct Step {
     pub name: String,
     /// Filename whose presence at the artifact directory marks this step.
     pub trigger_artifact: String,
+    /// Name of the model (a key into `Config::models`) to use at this step.
+    pub model: String,
+}
+
+/// A named model definition, referenced by `Step::model`.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct Model {
+    /// Key that `Step::model` references to select this model.
+    pub name: String,
+    /// Concrete model identifier (e.g. `openrouter/...`).
+    pub model: String,
+    /// Reasoning-budget hint for the model.
+    pub thinking: String,
 }
 
 /// Application configuration, serialized as TOML in `orksorksorks.toml`.
@@ -22,6 +35,9 @@ pub struct Config {
     /// Ordered steps; the current step is the last whose artifact exists.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub steps: Vec<Step>,
+    /// Named models referenced by `Step::model`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub models: Vec<Model>,
 }
 
 impl Default for Config {
@@ -29,6 +45,7 @@ impl Default for Config {
         Self {
             version: "0.1.0".to_string(),
             steps: Vec::new(),
+            models: Vec::new(),
         }
     }
 }
@@ -86,12 +103,15 @@ mod tests {
                 Step {
                     name: "one".to_string(),
                     trigger_artifact: "a.txt".to_string(),
+                    model: "small".to_string(),
                 },
                 Step {
                     name: "two".to_string(),
                     trigger_artifact: "b.txt".to_string(),
+                    model: "high".to_string(),
                 },
             ],
+            models: vec![],
         };
         let serialized = toml::to_string(&config).unwrap();
         let deserialized: Config = toml::from_str(&serialized).unwrap();
@@ -102,6 +122,7 @@ mod tests {
     fn missing_steps_deserializes_to_empty_vec() {
         let config: Config = toml::from_str("version = \"0.1.0\"\n").unwrap();
         assert!(config.steps.is_empty());
+        assert!(config.models.is_empty());
     }
 
     #[test]
@@ -110,13 +131,30 @@ mod tests {
         let path = dir.path().join("orksorksorks.toml");
         std::fs::write(
             &path,
-            "version = \"0.1.0\"\n[[steps]]\nname = \"one\"\ntrigger_artifact = \"a.txt\"\n",
+            "version = \"0.1.0\"\n[[steps]]\nname = \"one\"\ntrigger_artifact = \"a.txt\"\nmodel = \"small\"\n",
         )
         .unwrap();
         let config = read_config(&path, ConfigPathSource::ExplicitFlag).unwrap();
         assert_eq!(config.steps.len(), 1);
         assert_eq!(config.steps[0].name, "one");
         assert_eq!(config.steps[0].trigger_artifact, "a.txt");
+        assert_eq!(config.steps[0].model, "small");
+    }
+
+    #[test]
+    fn models_round_trip() {
+        let config = Config {
+            version: "0.1.0".to_string(),
+            steps: vec![],
+            models: vec![Model {
+                name: "small".to_string(),
+                model: "openrouter/deepseek/flash".to_string(),
+                thinking: "high".to_string(),
+            }],
+        };
+        let serialized = toml::to_string(&config).unwrap();
+        let deserialized: Config = toml::from_str(&serialized).unwrap();
+        assert_eq!(config, deserialized);
     }
 
     #[test]
@@ -144,7 +182,7 @@ mod tests {
         // Missing the required `name` field on the step
         std::fs::write(
             &path,
-            "version = \"0.1.0\"\n[[steps]]\ntrigger_artifact = \"a.txt\"\n",
+            "version = \"0.1.0\"\n[[steps]]\ntrigger_artifact = \"a.txt\"\nmodel = \"small\"\n",
         )
         .unwrap();
         let err = read_config(&path, ConfigPathSource::XdgConfigHome).unwrap_err();
