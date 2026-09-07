@@ -56,23 +56,32 @@ pub enum Commands {
 /// Route a parsed CLI to its handler and return a success message or error.
 pub fn select_command(cli: &Cli) -> Result<String, Error> {
     match &cli.command {
-        Commands::Init { config: _config } => init_command(),
+        Commands::Init { config } => {
+            let path = crate::config_dir::config_file_path(config.as_deref())?;
+            init_command(&path)
+        }
         Commands::Branch => branch_command(),
         Commands::ArtifactDirectory => artifact_directory_command(),
     }
 }
 
 /// Create a new `orksorksorks.toml` file with default configuration.
-fn init_command() -> Result<String, Error> {
+fn init_command(path: &std::path::Path) -> Result<String, Error> {
     use std::io::Write;
 
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
     let config = crate::config::Config::default();
     let toml_str = toml::to_string(&config)?;
-    let mut file = std::fs::File::create("orksorksorks.toml")?;
+    let mut file = std::fs::File::create(path)?;
     file.write_all(toml_str.as_bytes())?;
     file.flush()?;
     file.sync_all()?;
-    Ok(crate::format::green_string("✓ Created orksorksorks.toml"))
+    Ok(crate::format::green_string(&format!(
+        "✓ Created {}",
+        path.display()
+    )))
 }
 
 /// Compose the artifact-directory path from a cwd and a branch name.
@@ -107,13 +116,19 @@ mod tests {
 
     #[test]
     fn select_command_routes_init() {
+        let temp = tempfile::tempdir().unwrap();
+        unsafe {
+            std::env::set_var("XDG_CONFIG_HOME", temp.path());
+        }
         let cli = Cli {
             json: false,
             command: Commands::Init { config: None },
         };
         let result = select_command(&cli).unwrap();
+        let expected_path = temp.path().join("orksorksorks.toml");
+        assert!(expected_path.exists(), "config file not created");
         // Under cfg!(test) color is stripped
-        assert_eq!(result, "✓ Created orksorksorks.toml");
+        assert_eq!(result, format!("✓ Created {}", expected_path.display()));
     }
 
     #[test]

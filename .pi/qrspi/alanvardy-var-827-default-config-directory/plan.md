@@ -406,8 +406,8 @@ Note: `create_dir_all` on an already-existing readonly directory returns Ok (Alr
 
 ### Verification
 #### Automated
-- [ ] `cargo nextest run init_` passes (integration tests + `select_command_routes_init`)
-- [ ] `./scripts/test.sh` passes
+- [x] `cargo nextest run init_` passes (integration tests + `select_command_routes_init`)
+- [x] `./scripts/test.sh` passes
 
 #### Manual
 - [ ] `XDG_CONFIG_HOME=/tmp/x cargo run -- init` prints `✓ Created /tmp/x/orksorksorks.toml` and creates `/tmp/x/` (auto-create)
