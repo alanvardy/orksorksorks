@@ -318,8 +318,8 @@ remain unchanged and still pass (the debug_assert covers the new variants).
 ### Verification
 
 #### Automated
-- [ ] `./scripts/test.sh`
-- [ ] fast loop: `cargo nextest run --bin orksorksorks` (all four phases' unit tests pass)
+- [x] `./scripts/test.sh`
+- [x] fast loop: `cargo nextest run --bin orksorksorks` (all four phases' unit tests pass)
 
 #### Manual
 - [ ] `cargo run -- --help` lists `init`, `branch`, `artifact_directory` as subcommands.
