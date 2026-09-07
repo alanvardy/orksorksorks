@@ -23,9 +23,11 @@ fn write_config(dir: &std::path::Path) {
             "[[steps]]\n",
             "name = \"one\"\n",
             "trigger_artifact = \"first.txt\"\n",
+            "model = \"small\"\n",
             "[[steps]]\n",
             "name = \"two\"\n",
             "trigger_artifact = \"second.txt\"\n",
+            "model = \"high\"\n",
         ),
     )
     .unwrap();
@@ -105,9 +107,11 @@ fn step_with_default_returns_default_when_no_artifacts() {
             "[[steps]]\n",
             "name = \"one\"\n",
             "trigger_artifact = \"first.txt\"\n",
+            "model = \"small\"\n",
             "[[steps]]\n",
             "name = \"default\"\n",
             "trigger_artifact = \"\"\n",
+            "model = \"small\"\n",
         ),
     )
     .unwrap();
@@ -135,9 +139,11 @@ fn step_real_artifact_beats_default_step() {
             "[[steps]]\n",
             "name = \"default\"\n",
             "trigger_artifact = \"\"\n",
+            "model = \"small\"\n",
             "[[steps]]\n",
             "name = \"two\"\n",
             "trigger_artifact = \"second.txt\"\n",
+            "model = \"high\"\n",
         ),
     )
     .unwrap();
@@ -172,6 +178,7 @@ fn step_without_flag_reads_config_dir() {
             "[[steps]]\n",
             "name = \"one\"\n",
             "trigger_artifact = \"first.txt\"\n",
+            "model = \"small\"\n",
         ),
     )
     .unwrap();

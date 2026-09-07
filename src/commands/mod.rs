@@ -1,4 +1,4 @@
-use crate::config::Config;
+use crate::config::{Config, Step};
 use crate::errors::Error;
 use crate::git;
 use clap::{Parser, Subcommand};
@@ -60,6 +60,14 @@ pub enum Commands {
         #[arg(long, value_name = "CONFIG")]
         config: Option<PathBuf>,
     },
+
+    /// Print the model for the current step (from `config.models`)
+    Model {
+        /// Path to the TOML config file; defaults to the config directory
+        /// (the same resolution as `init`)
+        #[arg(long, value_name = "CONFIG")]
+        config: Option<PathBuf>,
+    },
 }
 
 /// Route a parsed CLI to its handler, injecting `env` for config-dir resolution.
@@ -75,6 +83,10 @@ fn select_command_with_env(cli: &Cli, env: &crate::config_dir::ConfigEnv) -> Res
             let (path, source) =
                 crate::config_dir::config_file_path_with_env(config.as_deref(), env)?;
             step_command(&path, source)
+        }
+        Commands::Model { config } => {
+            let path = crate::config_dir::config_file_path(config.as_deref())?;
+            model_command(&path)
         }
     }
 }
@@ -128,35 +140,47 @@ fn artifact_directory_command() -> Result<String, Error> {
     Ok(artifact_dir_path(&cwd, &git::current_branch()?))
 }
 
-/// Reverse-iterate steps and return the name of the first whose
-/// trigger artifact exists at `artifact_dir`. A step with an empty
+/// Reverse-iterate steps and return the *matched step* (not just its name),
+/// so callers like `step` and `model` can read different fields (`name` vs
+/// `model`). A step with an empty
 /// `trigger_artifact` is a default: it never matches by existence, but is
 /// returned instead of erroring when no other step's artifact exists (the
 /// last such step in the list, in reverse priority, wins). `artifact_dir`
 /// must end in a trailing slash — the same string-composition convention
 /// as `artifact_dir_path`.
-fn determine_step(config: &Config, artifact_dir: &str) -> Result<String, Error> {
+fn determine_step(config: &Config, artifact_dir: &str) -> Result<Step, Error> {
     let mut default = None;
     for step in config.steps.iter().rev() {
         if step.trigger_artifact.is_empty() {
             // Empty trigger = default step; never used while a real match
             // is possible, only as fallback. First seen in reverse = last
             // forward, which wins (reverse-priority convention).
-            default.get_or_insert_with(|| step.name.clone());
+            default.get_or_insert_with(|| step.clone());
             continue;
         }
         let path = format!("{artifact_dir}{}", step.trigger_artifact);
         if std::path::Path::new(&path).try_exists()? {
-            return Ok(step.name.clone());
+            return Ok(step.clone());
         }
     }
-    if let Some(name) = default {
-        return Ok(name);
+    if let Some(step) = default {
+        return Ok(step);
     }
     Err(Error::new(
         "step",
         &format!("{artifact_dir}: no trigger artifact matched"),
     ))
+}
+
+/// Look up the named model (the current step's `model` reference) in
+/// `config.models` and return its concrete `model` value.
+fn resolve_model(config: &Config, name: &str) -> Result<String, Error> {
+    for m in config.models.iter() {
+        if m.name == name {
+            return Ok(m.model.clone());
+        }
+    }
+    Err(Error::new("model", &format!("no model named {name:?}")))
 }
 
 /// Handle the `step` subcommand: read the config, derive the artifact
@@ -173,7 +197,19 @@ fn step_command(
     let cfg = crate::config::read_config(path, source)?;
     let cwd = std::env::current_dir()?;
     let artifact_dir = artifact_dir_path(&cwd, &git::current_branch()?);
-    determine_step(&cfg, &artifact_dir)
+    let step = determine_step(&cfg, &artifact_dir)?;
+    Ok(step.name)
+}
+
+/// Handle the `model` subcommand: determine the current step, read the
+/// model *name* it references, and resolve that name against `config.models`
+/// to the concrete model string.
+fn model_command(path: &std::path::Path) -> Result<String, Error> {
+    let cfg = crate::config::read_config(path)?;
+    let cwd = std::env::current_dir()?;
+    let artifact_dir = artifact_dir_path(&cwd, &git::current_branch()?);
+    let step = determine_step(&cfg, &artifact_dir)?;
+    resolve_model(&cfg, &step.model)
 }
 
 #[cfg(test)]
@@ -318,15 +354,18 @@ mod tests {
                 Step {
                     name: "one".to_string(),
                     trigger_artifact: "first.txt".to_string(),
+                    model: "small".to_string(),
                 },
                 Step {
                     name: "two".to_string(),
                     trigger_artifact: "second.txt".to_string(),
+                    model: "high".to_string(),
                 },
             ],
+            models: vec![],
         };
         let artifact_dir = format!("{}/", dir.path().display());
-        assert_eq!(determine_step(&config, &artifact_dir).unwrap(), "one");
+        assert_eq!(determine_step(&config, &artifact_dir).unwrap().name, "one");
     }
 
     #[test]
@@ -340,15 +379,18 @@ mod tests {
                 Step {
                     name: "one".to_string(),
                     trigger_artifact: "first.txt".to_string(),
+                    model: "small".to_string(),
                 },
                 Step {
                     name: "two".to_string(),
                     trigger_artifact: "second.txt".to_string(),
+                    model: "high".to_string(),
                 },
             ],
+            models: vec![],
         };
         let artifact_dir = format!("{}/", dir.path().display());
-        assert_eq!(determine_step(&config, &artifact_dir).unwrap(), "two");
+        assert_eq!(determine_step(&config, &artifact_dir).unwrap().name, "two");
     }
 
     #[test]
@@ -360,15 +402,21 @@ mod tests {
                 Step {
                     name: "one".to_string(),
                     trigger_artifact: "first.txt".to_string(),
+                    model: "small".to_string(),
                 },
                 Step {
                     name: "default".to_string(),
                     trigger_artifact: String::new(),
+                    model: "small".to_string(),
                 },
             ],
+            models: vec![],
         };
         let artifact_dir = format!("{}/", dir.path().display());
-        assert_eq!(determine_step(&config, &artifact_dir).unwrap(), "default");
+        assert_eq!(
+            determine_step(&config, &artifact_dir).unwrap().name,
+            "default"
+        );
     }
 
     #[test]
@@ -381,15 +429,18 @@ mod tests {
                 Step {
                     name: "one".to_string(),
                     trigger_artifact: "first.txt".to_string(),
+                    model: "small".to_string(),
                 },
                 Step {
                     name: "default".to_string(),
                     trigger_artifact: String::new(),
+                    model: "small".to_string(),
                 },
             ],
+            models: vec![],
         };
         let artifact_dir = format!("{}/", dir.path().display());
-        assert_eq!(determine_step(&config, &artifact_dir).unwrap(), "one");
+        assert_eq!(determine_step(&config, &artifact_dir).unwrap().name, "one");
     }
 
     #[test]
@@ -404,15 +455,18 @@ mod tests {
                 Step {
                     name: "default".to_string(),
                     trigger_artifact: String::new(),
+                    model: "small".to_string(),
                 },
                 Step {
                     name: "two".to_string(),
                     trigger_artifact: "second.txt".to_string(),
+                    model: "high".to_string(),
                 },
             ],
+            models: vec![],
         };
         let artifact_dir = format!("{}/", dir.path().display());
-        assert_eq!(determine_step(&config, &artifact_dir).unwrap(), "two");
+        assert_eq!(determine_step(&config, &artifact_dir).unwrap().name, "two");
     }
 
     #[test]
@@ -424,15 +478,18 @@ mod tests {
                 Step {
                     name: "one".to_string(),
                     trigger_artifact: String::new(),
+                    model: "small".to_string(),
                 },
                 Step {
                     name: "two".to_string(),
                     trigger_artifact: String::new(),
+                    model: "high".to_string(),
                 },
             ],
+            models: vec![],
         };
         let artifact_dir = format!("{}/", dir.path().display());
-        assert_eq!(determine_step(&config, &artifact_dir).unwrap(), "two");
+        assert_eq!(determine_step(&config, &artifact_dir).unwrap().name, "two");
     }
 
     #[test]
@@ -488,7 +545,9 @@ mod tests {
             steps: vec![Step {
                 name: "one".to_string(),
                 trigger_artifact: "first.txt".to_string(),
+                model: "small".to_string(),
             }],
+            models: vec![],
         };
         let artifact_dir = format!("{}/", dir.path().display());
         let err = determine_step(&config, &artifact_dir).unwrap_err();
@@ -498,5 +557,84 @@ mod tests {
             "{}",
             err.message
         );
+    }
+
+    #[test]
+    fn resolve_model_returns_model_for_matching_name() {
+        let config = Config {
+            version: "0.1.0".to_string(),
+            steps: vec![],
+            models: vec![crate::config::Model {
+                name: "small".to_string(),
+                model: "openrouter/deepseek/flash".to_string(),
+                thinking: "high".to_string(),
+            }],
+        };
+        assert_eq!(
+            resolve_model(&config, "small").unwrap(),
+            "openrouter/deepseek/flash",
+        );
+    }
+
+    #[test]
+    fn resolve_model_missing_name_errors_with_model_tag() {
+        let config = Config {
+            version: "0.1.0".to_string(),
+            steps: vec![],
+            models: vec![crate::config::Model {
+                name: "small".to_string(),
+                model: "openrouter/deepseek/flash".to_string(),
+                thinking: "high".to_string(),
+            }],
+        };
+        let err = resolve_model(&config, "large").unwrap_err();
+        assert_eq!(err.source, "model");
+        assert!(err.message.contains("no model named"), "{}", err.message);
+    }
+
+    #[test]
+    fn select_command_routes_model() {
+        let cli = Cli {
+            json: false,
+            command: Commands::Model {
+                config: Some(std::path::PathBuf::from(
+                    "definitely-missing-config-file.toml",
+                )),
+            },
+        };
+        // model_command reads the (missing) config first → "io", proving the
+        // arm dispatched to model_command.
+        let err = select_command(&cli).unwrap_err();
+        assert_eq!(err.source, "io");
+    }
+
+    #[test]
+    fn cli_try_parse_accepts_model() {
+        use clap::Parser;
+        let result = Cli::try_parse_from(["orksorksorks", "model"]);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn cli_try_parse_model_without_config_is_none() {
+        use clap::Parser;
+        let cli = Cli::try_parse_from(["orksorksorks", "model"]).unwrap();
+        match cli.command {
+            Commands::Model { config } => assert_eq!(config, None),
+            _ => panic!("expected Commands::Model"),
+        }
+    }
+
+    #[test]
+    fn cli_try_parse_model_with_custom_config() {
+        use clap::Parser;
+        let cli =
+            Cli::try_parse_from(["orksorksorks", "model", "--config", "custom.toml"]).unwrap();
+        match cli.command {
+            Commands::Model { config } => {
+                assert_eq!(config, Some(std::path::PathBuf::from("custom.toml")));
+            }
+            _ => panic!("expected Commands::Model"),
+        }
     }
 }
