@@ -61,6 +61,14 @@ fn init_command() -> Result<String, Error> {
     Ok(crate::format::green_string("✓ Created orksorksorks.toml"))
 }
 
+/// Compose the artifact-directory path from a cwd and a branch name.
+///
+/// Pure — no git, no I/O, no error path. The trailing slash is part of the
+/// contract (see `task.md`).
+fn artifact_dir_path(cwd: &std::path::Path, branch: &str) -> String {
+    format!("{}/.pi/orksorksorks/{}/", cwd.display(), branch)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -94,5 +102,25 @@ mod tests {
     #[test]
     fn cli_command_debug_assert() {
         Cli::command().debug_assert();
+    }
+
+    #[test]
+    fn artifact_dir_path_appends_trailing_slash() {
+        use pretty_assertions::assert_eq;
+        let path = artifact_dir_path(std::path::Path::new("/repo"), "main");
+        assert_eq!(path, "/repo/.pi/orksorksorks/main/");
+    }
+
+    #[test]
+    fn artifact_dir_path_is_plain() {
+        let path = artifact_dir_path(std::path::Path::new("/repo"), "main");
+        assert!(!path.contains('\x1b'), "{path}");
+    }
+
+    #[test]
+    fn artifact_dir_path_handles_branch_with_slashes() {
+        use pretty_assertions::assert_eq;
+        let path = artifact_dir_path(std::path::Path::new("/repo"), "feature/x");
+        assert_eq!(path, "/repo/.pi/orksorksorks/feature/x/");
     }
 }
