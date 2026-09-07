@@ -277,7 +277,7 @@ use colored::Colorize;
 use serde::Serialize;
 use std::fmt;
 
-/// The central error type for orksworksorks.
+/// The central error type for orksorksorks.
 ///
 /// `source` is a lowercase tag (e.g. `"io"`, `"toml::ser"`) and `message`
 /// is the human-readable description.  `Display` owns all coloring —
@@ -495,7 +495,7 @@ async fn main() {
 
 ## Phase 3: CLI Framework + Output Layer
 
-Ship the CLI skeleton and typed output layer. `orksworksorks init` parses correctly and routes through `CommandResult` — but the handler is a no-op stub returning `✓`.
+Ship the CLI skeleton and typed output layer. `orksorksorks init` parses correctly and routes through `CommandResult` — but the handler is a no-op stub returning `✓`.
 
 ### Changes
 
@@ -544,7 +544,7 @@ pub struct Cli {
 /// Top-level subcommands.
 #[derive(Subcommand, Debug, Clone)]
 pub enum Commands {
-    /// (i) Create a new orksworksorks.toml file
+    /// (i) Create a new orksorksorks.toml file
     Init,
 }
 

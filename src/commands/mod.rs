@@ -37,7 +37,7 @@ pub struct Cli {
 /// Top-level subcommands.
 #[derive(Subcommand, Debug, Clone)]
 pub enum Commands {
-    /// (i) Create a new orksworksorks.toml file
+    /// (i) Create a new orksorksorks.toml file
     Init,
 }
 
@@ -48,9 +48,17 @@ pub fn select_command(cli: &Cli) -> Result<String, Error> {
     }
 }
 
-/// Stub — replaced in Phase 4 with the real handler.
+/// Create a new `orksorksorks.toml` file with default configuration.
 fn init_command() -> Result<String, Error> {
-    Ok(crate::format::green_string("✓ init stub"))
+    use std::io::Write;
+
+    let config = crate::config::Config::default();
+    let toml_str = toml::to_string(&config)?;
+    let mut file = std::fs::File::create("orksorksorks.toml")?;
+    file.write_all(toml_str.as_bytes())?;
+    file.flush()?;
+    file.sync_all()?;
+    Ok(crate::format::green_string("✓ Created orksorksorks.toml"))
 }
 
 #[cfg(test)]
@@ -66,7 +74,7 @@ mod tests {
         };
         let result = select_command(&cli).unwrap();
         // Under cfg!(test) color is stripped
-        assert_eq!(result, "✓ init stub");
+        assert_eq!(result, "✓ Created orksorksorks.toml");
     }
 
     #[test]

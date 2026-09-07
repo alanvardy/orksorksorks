@@ -46,13 +46,13 @@ Ship the error and output-formatting conventions. Every subsequent stage imports
 
 ## Stage 3: CLI Framework + Output Layer
 
-Ship the CLI skeleton and typed output layer. `orksworksorks init` parses correctly and routes through `CommandResult` — but the handler is a no-op stub returning `✓`.
+Ship the CLI skeleton and typed output layer. `orksorksorks init` parses correctly and routes through `CommandResult` — but the handler is a no-op stub returning `✓`.
 
 **Files**: `src/main.rs` (expand — CommandResult, output layer, run_command, verify_cmd), `src/commands/mod.rs` (new — Cli, Commands, select_command, init stub), `tests/json_output.rs` (new)
 
 **Key changes**:
 - `pub struct Cli` — `#[derive(Parser, Clone)]`, `#[command(name = NAME, author = AUTHOR, version = LONG_VERSION, about = ABOUT)]` with `env!` constants + `BUILD_*` from build.rs, `json: bool` (`#[arg(short = 'j', long, global = true, default_value_t = false)]`), `command: Commands` (`#[command(subcommand)]`)
-- `pub enum Commands` — `#[derive(Subcommand, Debug, Clone)]`, `Init` variant: `/// (i) Create a new orksworksorks.toml file`
+- `pub enum Commands` — `#[derive(Subcommand, Debug, Clone)]`, `Init` variant: `/// (i) Create a new orksorksorks.toml file`
 - `pub fn select_command(cli: &Cli) -> Result<String, Error>` — two-level match; `Commands::Init` → `init_command()`
 - `fn init_command() -> Result<String, Error>` — stub: `Ok(format::green_string("✓ init stub"))`
 - `pub struct CommandResult { pub result: Result<String, Error>, pub bell_success: bool, pub bell_failure: bool, pub json: bool }`
