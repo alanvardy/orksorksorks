@@ -119,14 +119,29 @@ fn artifact_directory_command() -> Result<String, Error> {
 }
 
 /// Reverse-iterate steps and return the name of the first whose
-/// trigger artifact exists at `artifact_dir`. `artifact_dir` must end in a
-/// trailing slash — the same string-composition convention as `artifact_dir_path`.
+/// trigger artifact exists at `artifact_dir`. A step with an empty
+/// `trigger_artifact` is a default: it never matches by existence, but is
+/// returned instead of erroring when no other step's artifact exists (the
+/// last such step in the list, in reverse priority, wins). `artifact_dir`
+/// must end in a trailing slash — the same string-composition convention
+/// as `artifact_dir_path`.
 fn determine_step(config: &Config, artifact_dir: &str) -> Result<String, Error> {
+    let mut default = None;
     for step in config.steps.iter().rev() {
+        if step.trigger_artifact.is_empty() {
+            // Empty trigger = default step; never used while a real match
+            // is possible, only as fallback. First seen in reverse = last
+            // forward, which wins (reverse-priority convention).
+            default.get_or_insert_with(|| step.name.clone());
+            continue;
+        }
         let path = format!("{artifact_dir}{}", step.trigger_artifact);
         if std::path::Path::new(&path).try_exists()? {
             return Ok(step.name.clone());
         }
+    }
+    if let Some(name) = default {
+        return Ok(name);
     }
     Err(Error::new(
         "step",
@@ -313,6 +328,90 @@ mod tests {
                 Step {
                     name: "two".to_string(),
                     trigger_artifact: "second.txt".to_string(),
+                },
+            ],
+        };
+        let artifact_dir = format!("{}/", dir.path().display());
+        assert_eq!(determine_step(&config, &artifact_dir).unwrap(), "two");
+    }
+
+    #[test]
+    fn determine_step_empty_trigger_is_default_fallback() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = Config {
+            version: "0.1.0".to_string(),
+            steps: vec![
+                Step {
+                    name: "one".to_string(),
+                    trigger_artifact: "first.txt".to_string(),
+                },
+                Step {
+                    name: "default".to_string(),
+                    trigger_artifact: String::new(),
+                },
+            ],
+        };
+        let artifact_dir = format!("{}/", dir.path().display());
+        assert_eq!(determine_step(&config, &artifact_dir).unwrap(), "default");
+    }
+
+    #[test]
+    fn determine_step_empty_trigger_does_not_shadow_real_match() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("first.txt"), "").unwrap();
+        let config = Config {
+            version: "0.1.0".to_string(),
+            steps: vec![
+                Step {
+                    name: "one".to_string(),
+                    trigger_artifact: "first.txt".to_string(),
+                },
+                Step {
+                    name: "default".to_string(),
+                    trigger_artifact: String::new(),
+                },
+            ],
+        };
+        let artifact_dir = format!("{}/", dir.path().display());
+        assert_eq!(determine_step(&config, &artifact_dir).unwrap(), "one");
+    }
+
+    #[test]
+    fn determine_step_empty_trigger_matches_before_later_artifact() {
+        // The default is a last resort: it does not beat a later step's
+        // real artifact, only the absence of any artifact.
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("second.txt"), "").unwrap();
+        let config = Config {
+            version: "0.1.0".to_string(),
+            steps: vec![
+                Step {
+                    name: "default".to_string(),
+                    trigger_artifact: String::new(),
+                },
+                Step {
+                    name: "two".to_string(),
+                    trigger_artifact: "second.txt".to_string(),
+                },
+            ],
+        };
+        let artifact_dir = format!("{}/", dir.path().display());
+        assert_eq!(determine_step(&config, &artifact_dir).unwrap(), "two");
+    }
+
+    #[test]
+    fn determine_step_latest_empty_trigger_wins() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = Config {
+            version: "0.1.0".to_string(),
+            steps: vec![
+                Step {
+                    name: "one".to_string(),
+                    trigger_artifact: String::new(),
+                },
+                Step {
+                    name: "two".to_string(),
+                    trigger_artifact: String::new(),
                 },
             ],
         };
