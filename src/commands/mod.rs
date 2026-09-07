@@ -1,3 +1,4 @@
+use crate::config::Config;
 use crate::errors::Error;
 use crate::git;
 use clap::{Parser, Subcommand};
@@ -109,9 +110,26 @@ fn artifact_directory_command() -> Result<String, Error> {
     Ok(artifact_dir_path(&cwd, &git::current_branch()?))
 }
 
+/// Reverse-iterate steps and return the name of the first whose
+/// trigger artifact exists at `artifact_dir`. `artifact_dir` must end in a
+/// trailing slash — the same string-composition convention as `artifact_dir_path`.
+fn determine_step(config: &Config, artifact_dir: &str) -> Result<String, Error> {
+    for step in config.steps.iter().rev() {
+        let path = format!("{artifact_dir}{}", step.trigger_artifact);
+        if std::path::Path::new(&path).try_exists()? {
+            return Ok(step.name.clone());
+        }
+    }
+    Err(Error::new(
+        "step",
+        &format!("{artifact_dir}: no trigger artifact matched"),
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::{Config, Step};
     use clap::CommandFactory;
 
     #[test]
@@ -237,5 +255,68 @@ mod tests {
         use pretty_assertions::assert_eq;
         let path = artifact_dir_path(std::path::Path::new("/repo"), "main");
         assert_eq!(path, "/repo/.pi/orksorksorks/main/");
+    }
+
+    #[test]
+    fn determine_step_returns_step_with_present_artifact() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("first.txt"), "").unwrap();
+        let config = Config {
+            version: "0.1.0".to_string(),
+            steps: vec![
+                Step {
+                    name: "one".to_string(),
+                    trigger_artifact: "first.txt".to_string(),
+                },
+                Step {
+                    name: "two".to_string(),
+                    trigger_artifact: "second.txt".to_string(),
+                },
+            ],
+        };
+        let artifact_dir = format!("{}/", dir.path().display());
+        assert_eq!(determine_step(&config, &artifact_dir).unwrap(), "one");
+    }
+
+    #[test]
+    fn determine_step_prefers_last_step_in_reverse() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("first.txt"), "").unwrap();
+        std::fs::write(dir.path().join("second.txt"), "").unwrap();
+        let config = Config {
+            version: "0.1.0".to_string(),
+            steps: vec![
+                Step {
+                    name: "one".to_string(),
+                    trigger_artifact: "first.txt".to_string(),
+                },
+                Step {
+                    name: "two".to_string(),
+                    trigger_artifact: "second.txt".to_string(),
+                },
+            ],
+        };
+        let artifact_dir = format!("{}/", dir.path().display());
+        assert_eq!(determine_step(&config, &artifact_dir).unwrap(), "two");
+    }
+
+    #[test]
+    fn determine_step_no_match_errors_with_step_tag() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = Config {
+            version: "0.1.0".to_string(),
+            steps: vec![Step {
+                name: "one".to_string(),
+                trigger_artifact: "first.txt".to_string(),
+            }],
+        };
+        let artifact_dir = format!("{}/", dir.path().display());
+        let err = determine_step(&config, &artifact_dir).unwrap_err();
+        assert_eq!(err.source, "step");
+        assert!(
+            err.message.contains("no trigger artifact matched"),
+            "{}",
+            err.message
+        );
     }
 }

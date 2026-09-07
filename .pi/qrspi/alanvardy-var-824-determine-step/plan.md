@@ -285,8 +285,8 @@ fn determine_step_no_match_errors_with_step_tag() {
 
 ### Verification
 #### Automated
-- [ ] `cargo test determine_step` passes (all three tests)
-- [ ] `./scripts/test.sh` green
+- [x] `cargo test determine_step` passes (all three tests)
+- [x] `./scripts/test.sh` green
 
 #### Manual
 - [ ] n/a — covered by unit tests; the `prefers_last_step_in_reverse` test documents reverse priority (the "ordered progression" interpretation).
