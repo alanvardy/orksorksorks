@@ -485,8 +485,8 @@ async fn main() {
 ### Verification
 
 #### Automated
-- [ ] `cargo nextest run` passes (only Phase 2 tests green)
-- [ ] `cargo clippy --tests -- -D warnings` passes
+- [x] `cargo nextest run` passes (only Phase 2 tests green)
+- [x] `cargo clippy --tests -- -D warnings` passes
 
 #### Manual
 - [ ] Run a quick test outside `cfg!(test)` to see colors: `cargo run` then temporarily remove the cfg gate — confirmation only; restore after
