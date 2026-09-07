@@ -39,12 +39,21 @@ pub struct Cli {
 pub enum Commands {
     /// (i) Create a new orksorksorks.toml file
     Init,
+
+    /// Print the current git branch
+    Branch,
+
+    /// Print the artifact directory path (cwd/.pi/orksorksorks/<branch>/)
+    #[command(name = "artifact_directory")]
+    ArtifactDirectory,
 }
 
 /// Route a parsed CLI to its handler and return a success message or error.
 pub fn select_command(cli: &Cli) -> Result<String, Error> {
     match &cli.command {
         Commands::Init => init_command(),
+        Commands::Branch => branch_command(),
+        Commands::ArtifactDirectory => artifact_directory_command(),
     }
 }
 
@@ -139,6 +148,47 @@ mod tests {
     #[test]
     fn cli_command_debug_assert() {
         Cli::command().debug_assert();
+    }
+
+    #[test]
+    fn select_command_routes_branch() {
+        let cli = Cli {
+            json: false,
+            command: Commands::Branch,
+        };
+        let result = select_command(&cli).unwrap();
+        assert!(!result.is_empty());
+    }
+
+    #[test]
+    fn select_command_routes_artifact_directory() {
+        let cli = Cli {
+            json: false,
+            command: Commands::ArtifactDirectory,
+        };
+        let result = select_command(&cli).unwrap();
+        assert!(!result.is_empty());
+    }
+
+    #[test]
+    fn cli_try_parse_accepts_branch() {
+        use clap::Parser;
+        let result = Cli::try_parse_from(["orksorksorks", "branch"]);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn cli_try_parse_accepts_artifact_directory() {
+        use clap::Parser;
+        let result = Cli::try_parse_from(["orksorksorks", "artifact_directory"]);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn cli_try_parse_rejects_kebab_case_artifact_directory() {
+        use clap::Parser;
+        let result = Cli::try_parse_from(["orksorksorks", "artifact-directory"]);
+        assert!(result.is_err());
     }
 
     #[test]
