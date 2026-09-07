@@ -124,9 +124,9 @@ fn missing_steps_deserializes_to_empty_vec() {
 
 ### Verification
 #### Automated
-- [ ] `cargo test steps_round_trip` and `cargo test missing_steps_deserializes_to_empty_vec` pass
-- [ ] `cargo test default_config_serializes_to_expected_toml` still passes (pins no-`steps` output)
-- [ ] `./scripts/test.sh` green — `tests/init_creates_file.rs:22-25` (exact `version = "0.1.0"\n` bytes) untouched
+- [x] `cargo test steps_round_trip` and `cargo test missing_steps_deserializes_to_empty_vec` pass
+- [x] `cargo test default_config_serializes_to_expected_toml` still passes (pins no-`steps` output)
+- [x] `./scripts/test.sh` green — `tests/init_creates_file.rs:22-25` (exact `version = "0.1.0"\n` bytes) untouched
 
 #### Manual
 - [ ] `cargo run -- init` in a scratch dir writes `version = "0.1.0"\n` only (no `[[steps]]` line in the file).
