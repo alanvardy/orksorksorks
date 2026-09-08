@@ -139,7 +139,16 @@ fn prompt_with_explicit_step_name_overrides_step() {
     assert!(!stdout.contains('\x1b'), "stdout: {stdout}");
     // The frontmatter `step` is the effective prompt name: the explicit
     // override, not the (different) derived step from the present artifact.
-    assert!(stdout.starts_with("step = one\n"), "stdout: {stdout}");
+    assert!(
+        stdout.starts_with("## Important variables\n"),
+        "stdout: {stdout}"
+    );
+    assert!(
+        stdout.contains(
+            "## Important variables\nUse these everywhere you see $<variable>\nstep = one\n"
+        ),
+        "stdout: {stdout}",
+    );
 }
 
 #[test]
@@ -162,7 +171,8 @@ fn prompt_json_returns_valid_json_with_data_field() {
     let v: serde_json::Value = serde_json::from_str(&stdout).unwrap();
     let data = v["data"].as_str().unwrap();
     // The frontmatter block is part of the prompt output in JSON mode too.
-    assert!(data.starts_with("step = one\n"), "data: {data}");
+    assert!(data.starts_with("## Important variables\n"), "data: {data}");
+    assert!(data.contains("step = one\n"), "data: {data}");
     assert!(data.contains("# Prompt for step one"), "data: {data}");
     assert!(!stdout.contains('\x1b'), "stdout: {stdout}");
 }
@@ -255,7 +265,15 @@ fn prompt_frontmatter_shown_by_default() {
     cmd.assert().success();
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.starts_with("step = one\n"), "stdout: {stdout}");
+    assert!(
+        stdout.starts_with("## Important variables\n"),
+        "stdout: {stdout}"
+    );
+    assert!(
+        stdout.starts_with("## Important variables\nUse these everywhere you see $<variable>\n"),
+        "stdout: {stdout}",
+    );
+    assert!(stdout.contains("step = one\n"), "stdout: {stdout}");
     assert!(stdout.contains("branch = main\n"), "stdout: {stdout}");
     // Canonicalize so the comparison matches what the child process sees
     // through `std::env::current_dir()` (on macOS `/var` → `/private/var`);
@@ -290,6 +308,14 @@ fn prompt_frontmatter_hidden_when_show_frontmatter_false() {
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("# Prompt for step one"), "stdout: {stdout}");
+    assert!(
+        !stdout.contains("## Important variables"),
+        "stdout: {stdout}"
+    );
+    assert!(
+        !stdout.contains("Use these everywhere you see"),
+        "stdout: {stdout}"
+    );
     assert!(!stdout.contains("step = "), "stdout: {stdout}");
     assert!(!stdout.contains("branch = "), "stdout: {stdout}");
     assert!(
