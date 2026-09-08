@@ -98,7 +98,8 @@ pub fn read_config(path: &std::path::Path, source: ConfigPathSource) -> Result<C
             ));
         }
     };
-    let config = toml::from_str(&contents)?;
+    let config: Config = toml::from_str(&contents)?;
+    config.validate()?;
     Ok(config)
 }
 
@@ -287,7 +288,20 @@ mod tests {
         let path = dir.path().join("orksorksorks.toml");
         std::fs::write(
             &path,
-            "version = \"0.1.0\"\n[[steps]]\nname = \"one\"\ntrigger_artifact = \"a.txt\"\nmodel = \"small\"\n",
+            concat!(
+                "version = \"0.1.0\"\n",
+                "[[steps]]\n",
+                "name = \"one\"\n",
+                "trigger_artifact = \"a.txt\"\n",
+                "model = \"small\"\n",
+                "[[models]]\n",
+                "name = \"small\"\n",
+                "model = \"openrouter/deepseek/flash\"\n",
+                "thinking = \"high\"\n",
+                "[[prompts]]\n",
+                "name = \"one\"\n",
+                "content = \"one\"\n",
+            ),
         )
         .unwrap();
         let config = read_config(&path, ConfigPathSource::ExplicitFlag).unwrap();
@@ -589,5 +603,39 @@ mod tests {
         ))
         .unwrap_err();
         assert_eq!(err.source, "config:duplicate-name");
+    }
+
+    #[test]
+    fn read_config_rejects_missing_prompt_with_config_tag() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("orksorksorks.toml");
+        std::fs::write(
+            &path,
+            concat!(
+                "version = \"0.1.0\"\n",
+                "[[steps]]\nname = \"one\"\ntrigger_artifact = \"a.txt\"\nmodel = \"small\"\n",
+                "[[models]]\nname = \"small\"\nmodel = \"openrouter/deepseek/flash\"\nthinking = \"high\"\n",
+            ),
+        )
+        .unwrap();
+        let err = read_config(&path, ConfigPathSource::ExplicitFlag).unwrap_err();
+        assert_eq!(err.source, "config:missing-prompt");
+    }
+
+    #[test]
+    fn read_config_rejects_missing_model_with_config_tag() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("orksorksorks.toml");
+        std::fs::write(
+            &path,
+            concat!(
+                "version = \"0.1.0\"\n",
+                "[[steps]]\nname = \"one\"\ntrigger_artifact = \"a.txt\"\nmodel = \"nope\"\n",
+                "[[prompts]]\nname = \"one\"\ncontent = \"one\"\n",
+            ),
+        )
+        .unwrap();
+        let err = read_config(&path, ConfigPathSource::ExplicitFlag).unwrap_err();
+        assert_eq!(err.source, "config:missing-model");
     }
 }

@@ -431,7 +431,7 @@ fn read_config_rejects_missing_model_with_config_tag() {
 
 ### Verification
 #### Automated
-- [ ] `scripts/test.sh` green — reconciled fixtures + new wiring coexist; existing `read_config_loads_steps_from_disk` / `_prompts_from_disk` / `_malformed_toml_tags_toml_de` / `_missing_file_tags_io` stay green
+- [x] `scripts/test.sh` green — reconciled fixtures + new wiring coexist; existing `read_config_loads_steps_from_disk` / `_prompts_from_disk` / `_malformed_toml_tags_toml_de` / `_missing_file_tags_io` stay green
 
 #### Manual
 - [ ] `cargo run -- step --config <bad.toml>` (step with no prompt) exits 1 with `config:missing-prompt` on stderr, no ANSI
@@ -559,7 +559,7 @@ fn valid_config_succeeds() {
 
 - [x] After Phase 1: `cargo nextest run --no-tests pass -E 'test(config)'`
 - [x] After Phase 2: `cargo nextest run --no-tests pass -E 'test(config)'`
-- [ ] After Phase 3: full `scripts/test.sh`
+- [x] After Phase 3: full `scripts/test.sh`
 - [ ] After Phase 4: full `scripts/test.sh`
 
 ## Deviations from `structure.md` (and why)
