@@ -69,7 +69,7 @@ fn default_true() -> bool {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            version: "0.1.0".to_string(),
+            version: CONFIG_VERSION.to_string(),
             show_frontmatter: true,
             steps: Vec::new(),
             models: Vec::new(),
@@ -78,11 +78,13 @@ impl Default for Config {
     }
 }
 
-/// Read and deserialize a `Config` from disk.
+/// Read, deserialize, and validate a `Config` from disk.
 ///
 /// Missing/unreadable files map to `"io"` with the resolved path and its
 /// resolution source embedded in the message; malformed TOML maps to
-/// `"toml::de"` (via `From<toml::de::Error>`).
+/// `"toml::de"` (via `From<toml::de::Error>`), which also covers unknown
+/// keys rejected by `deny_unknown_fields`. A well-formed config that fails
+/// [`Config::validate`] maps to a `"config:*"` tag instead.
 pub fn read_config(path: &std::path::Path, source: ConfigPathSource) -> Result<Config, Error> {
     let contents = match std::fs::read_to_string(path) {
         Ok(c) => c,
@@ -145,7 +147,7 @@ impl Config {
         }
 
         for step in &self.steps {
-            if step.model.is_empty() {
+            if step.model.trim().is_empty() {
                 return Err(Error::new(
                     "config:empty-model",
                     &format!("step {:?} has an empty model reference", step.name),
@@ -155,7 +157,8 @@ impl Config {
 
         let mut triggers: HashSet<&str> = HashSet::new();
         for step in &self.steps {
-            if !step.trigger_artifact.is_empty() && !triggers.insert(&step.trigger_artifact) {
+            if !step.trigger_artifact.is_empty() && !triggers.insert(step.trigger_artifact.as_str())
+            {
                 return Err(Error::new(
                     "config:duplicate-trigger",
                     &format!(
@@ -166,16 +169,19 @@ impl Config {
             }
         }
 
-        let default_count = self
+        let default_names: Vec<&str> = self
             .steps
             .iter()
             .filter(|s| s.trigger_artifact.is_empty())
-            .count();
-        if default_count > 1 {
+            .map(|s| s.name.as_str())
+            .collect();
+        if default_names.len() > 1 {
             return Err(Error::new(
                 "config:multiple-default",
                 &format!(
-                    "{default_count} steps have an empty trigger artifact (at most one default step is allowed)"
+                    "{} steps have an empty trigger artifact (at most one default step is allowed): {}",
+                    default_names.len(),
+                    default_names.join(", "),
                 ),
             ));
         }
@@ -218,9 +224,9 @@ fn duplicated_name(names: &[&str], section: &str) -> Option<String> {
     None
 }
 
-/// Return a message identifying `section` if any listed name is empty.
+/// Return a message identifying `section` if any listed name is blank.
 fn empty_name(names: &[&str], section: &str) -> Option<String> {
-    if names.contains(&"") {
+    if names.iter().any(|name| name.trim().is_empty()) {
         return Some(format!("[{section}] contains an entry with an empty name"));
     }
     None
@@ -471,6 +477,22 @@ mod tests {
     }
 
     #[test]
+    fn validate_accepts_unreferenced_prompts_and_models() {
+        // Orphan entries are allowed by design (membership-only cross-check):
+        // a model no step references and a prompt with no matching step name
+        // must not fail validation (e.g. prompts used via `prompt <name>`).
+        let result = validate_toml(concat!(
+            "version = \"0.1.0\"\n",
+            "[[steps]]\nname = \"one\"\ntrigger_artifact = \"a.txt\"\nmodel = \"small\"\n",
+            "[[models]]\nname = \"small\"\nmodel = \"openrouter/deepseek/flash\"\nthinking = \"high\"\n",
+            "[[models]]\nname = \"unused\"\nmodel = \"openrouter/deepseek/pro\"\nthinking = \"high\"\n",
+            "[[prompts]]\nname = \"one\"\ncontent = \"one\"\n",
+            "[[prompts]]\nname = \"orphan\"\ncontent = \"orphan\"\n",
+        ));
+        assert!(result.is_ok(), "{result:?}");
+    }
+
+    #[test]
     fn validate_rejects_wrong_version() {
         let err = validate_toml("version = \"9.9.9\"\n").unwrap_err();
         assert_eq!(err.source, "config:version");
@@ -528,10 +550,34 @@ mod tests {
     }
 
     #[test]
+    fn validate_rejects_whitespace_only_step_name() {
+        let err = validate_toml(concat!(
+            "version = \"0.1.0\"\n",
+            "[[steps]]\nname = \"   \"\ntrigger_artifact = \"a.txt\"\nmodel = \"small\"\n",
+            "[[models]]\nname = \"small\"\nmodel = \"openrouter/deepseek/flash\"\nthinking = \"high\"\n",
+            "[[prompts]]\nname = \"one\"\ncontent = \"one\"\n",
+        ))
+        .unwrap_err();
+        assert_eq!(err.source, "config:empty-name");
+    }
+
+    #[test]
     fn validate_rejects_empty_model_reference() {
         let err = validate_toml(concat!(
             "version = \"0.1.0\"\n",
             "[[steps]]\nname = \"one\"\ntrigger_artifact = \"a.txt\"\nmodel = \"\"\n",
+            "[[models]]\nname = \"small\"\nmodel = \"openrouter/deepseek/flash\"\nthinking = \"high\"\n",
+            "[[prompts]]\nname = \"one\"\ncontent = \"one\"\n",
+        ))
+        .unwrap_err();
+        assert_eq!(err.source, "config:empty-model");
+    }
+
+    #[test]
+    fn validate_rejects_whitespace_only_model_reference() {
+        let err = validate_toml(concat!(
+            "version = \"0.1.0\"\n",
+            "[[steps]]\nname = \"one\"\ntrigger_artifact = \"a.txt\"\nmodel = \"   \"\n",
             "[[models]]\nname = \"small\"\nmodel = \"openrouter/deepseek/flash\"\nthinking = \"high\"\n",
             "[[prompts]]\nname = \"one\"\ncontent = \"one\"\n",
         ))

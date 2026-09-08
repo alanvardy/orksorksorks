@@ -185,12 +185,13 @@ fn artifact_directory_command() -> Result<String, Error> {
 
 /// Reverse-iterate steps and return the *matched step* (not just its name),
 /// so callers like `step` and `model` can read different fields (`name` vs
-/// `model`). A step with an empty
-/// `trigger_artifact` is a default: it never matches by existence, but is
-/// returned instead of erroring when no other step's artifact exists (the
-/// last such step in the list, in reverse priority, wins). `artifact_dir`
-/// must end in a trailing slash — the same string-composition convention
-/// as `artifact_dir_path`.
+/// `model`). A step with an empty `trigger_artifact` is a default: it never
+/// matches by existence, but is returned instead of erroring when no other
+/// step's artifact exists. Configs loaded through `read_config` have at most
+/// one default (enforced by `config:multiple-default`); this function still
+/// tolerates several and the last such step in the list wins.
+/// `artifact_dir` must end in a trailing slash — the same string-composition
+/// convention as `artifact_dir_path`.
 fn determine_step(config: &Config, artifact_dir: &str) -> Result<Step, Error> {
     let mut default = None;
     for step in config.steps.iter().rev() {
