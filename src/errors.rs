@@ -3,9 +3,16 @@ use std::fmt;
 
 /// The central error type for orksorksorks.
 ///
-/// `source` is a lowercase tag (e.g. `"io"`, `"toml::ser"`) and `message`
-/// is the human-readable description.  `Display` owns all coloring —
-/// callers must not pre-apply ANSI codes.
+/// `source` is a lowercase tag and `message` is the human-readable
+/// description. `Display` owns all coloring — callers must not pre-apply
+/// ANSI codes.
+///
+/// Tags fall into two layers. The parse layer covers reading and
+/// deserializing the config: `"io"` (file read) and `"toml::ser"` /
+/// `"toml::de"` (malformed TOML, including unknown keys rejected by
+/// `deny_unknown_fields`). The post-parse semantic layer covers validation
+/// (`"config:*"`, e.g. `"config:missing-prompt"`) and per-command lookups
+/// (`"config-dir"`, `"step"`, `"model"`, `"prompt"`, `"git"`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Error {
     pub message: String,
