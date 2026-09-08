@@ -270,8 +270,8 @@ fn resolve_config_dir() -> Result<PathBuf, Error> {
 
 ### Verification
 #### Automated
-- [ ] `cargo nextest run --no-tests pass config_dir` — 7 green
-- [ ] `cargo clippy --tests -- -D warnings` — clean (proves no dead `resolve_config_dir`)
+- [x] `cargo nextest run --no-tests pass config_dir` — 7 green
+- [x] `cargo clippy --tests -- -D warnings` — clean (proves no dead `resolve_config_dir`)
 
 #### Manual
 - [ ] `cargo run -- init` with no `XDG_CONFIG_HOME` falls back to `$HOME/.config/orksorksorks.toml` (unchanged)
