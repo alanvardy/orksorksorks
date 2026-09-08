@@ -52,7 +52,7 @@ fn artifact_directory_prints_composed_path() {
 
     let expected = expected_artifact_directory(temp.path());
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert_eq!(stdout.trim_end_matches('\x07').trim_end(), expected);
+    assert_eq!(stdout.trim_end(), expected);
     assert!(!stdout.contains('\x1b'), "stdout: {stdout}");
 }
 
