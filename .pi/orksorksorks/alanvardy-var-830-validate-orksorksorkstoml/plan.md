@@ -294,11 +294,11 @@ For ambitious cases (empty-model, missing-prompt, missing-model), the fixture mu
 
 ### Verification
 #### Automated
-- [ ] `cargo nextest run --no-tests pass -E 'test(config)'` — 1 valid + 8 sad + 1 ordering `validate` tests green; CLI suite untouched (validation not yet wired)
-- [ ] `scripts/test.sh` green
+- [x] `cargo nextest run --no-tests pass -E 'test(config)'` — 1 valid + 8 sad + 1 ordering `validate` tests green; CLI suite untouched (validation not yet wired)
+- [x] `scripts/test.sh` green
 
 #### Manual
-- [ ] `cargo clippy --tests -- -D warnings` clean (doc comments on `CONFIG_VERSION`/`validate`)
+- [x] `cargo clippy --tests -- -D warnings` clean (doc comments on `CONFIG_VERSION`/`validate`)
 
 
 ---
@@ -558,7 +558,7 @@ fn valid_config_succeeds() {
 ## Testing Checkpoints (run in order; halt on any red)
 
 - [x] After Phase 1: `cargo nextest run --no-tests pass -E 'test(config)'`
-- [ ] After Phase 2: `cargo nextest run --no-tests pass -E 'test(config)'`
+- [x] After Phase 2: `cargo nextest run --no-tests pass -E 'test(config)'`
 - [ ] After Phase 3: full `scripts/test.sh`
 - [ ] After Phase 4: full `scripts/test.sh`
 
