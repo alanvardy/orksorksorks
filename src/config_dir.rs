@@ -64,16 +64,6 @@ impl std::fmt::Display for ConfigPathSource {
     }
 }
 
-/// Resolve the full target path for `init`.
-///
-/// `Some(path)` passes an explicit override through unchanged. `None` falls
-/// back to `<config dir>/orksorksorks.toml`, where the config dir is resolved
-/// from `$XDG_CONFIG_HOME` (absolute only), then `$HOME/.config` (Unix) or
-/// `%APPDATA%` (Windows).
-pub fn config_file_path(explicit: Option<&Path>) -> Result<(PathBuf, ConfigPathSource), Error> {
-    config_file_path_with_env(explicit, &ConfigEnv::from_env())
-}
-
 /// Pure resolution core — every env read is a field access on `env`.
 ///
 /// Platform-agnostic: `ConfigEnv::from_env` populates only the fields the
@@ -108,19 +98,18 @@ pub(crate) fn resolve_config_dir_with_env(
     ))
 }
 
-/// Explicit-env variant of [`config_file_path`].
+/// Resolve the config-file path, consulting the injected `env` instead of
+/// the process environment.
 ///
-/// `Some(path)` passes through unchanged; `None` resolves the config dir from
-/// the injected `env` and joins [`FILE_NAME`].
+/// `Some(path)` passes an explicit override through unchanged; `None`
+/// resolves the config dir from `env` and joins [`FILE_NAME`].
 pub(crate) fn config_file_path_with_env(
     explicit: Option<&Path>,
     env: &ConfigEnv,
 ) -> Result<(PathBuf, ConfigPathSource), Error> {
     match explicit {
         Some(path) => Ok((path.to_path_buf(), ConfigPathSource::ExplicitFlag)),
-        None => resolve_config_dir_with_env(env).map(|(dir, source)| {
-            (dir.join(FILE_NAME), source)
-        }),
+        None => resolve_config_dir_with_env(env).map(|(dir, source)| (dir.join(FILE_NAME), source)),
     }
 }
 
@@ -177,7 +166,7 @@ mod tests {
     #[test]
     fn explicit_path_passthrough() {
         let p = std::path::Path::new("/custom/override.toml");
-        let (path, source) = config_file_path(Some(p)).unwrap();
+        let (path, source) = config_file_path_with_env(Some(p), &ConfigEnv::default()).unwrap();
         assert_eq!(path, p.to_path_buf());
         assert_eq!(source, ConfigPathSource::ExplicitFlag);
     }

@@ -370,8 +370,8 @@ None (verification only).
 
 ### Verification
 #### Automated
-- [ ] `./scripts/test.sh` passes (fmt → check → clippy `-D warnings` → nextest → forbidden-strings grep)
-- [ ] `cargo clippy --all-targets --all-features --locked -- -D warnings` passes (CI mirror)
+- [x] `./scripts/test.sh` passes (fmt → check → clippy `-D warnings` → nextest → forbidden-strings grep)
+- [x] `cargo clippy --all-targets --all-features --locked -- -D warnings` passes (CI mirror)
 
 #### Manual
 - [ ] `cargo run -- init` and `cargo run -- step` behave identically to before on this host (spot-check with and without `XDG_CONFIG_HOME`/`HOME` set)
