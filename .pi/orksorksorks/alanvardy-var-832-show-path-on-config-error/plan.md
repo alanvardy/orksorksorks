@@ -262,9 +262,9 @@ The test uses `config: Some(PathBuf::from("definitely-missing-config-file.toml")
 
 ### Verification
 #### Automated
-- [ ] `cargo nextest run config::` passes
-- [ ] `cargo nextest run commands::` passes
-- [ ] `scripts/test.sh` passes
+- [x] `cargo nextest run config::` passes
+- [x] `cargo nextest run commands::` passes
+- [x] `scripts/test.sh` passes
 
 #### Manual
 - [ ] `cargo run -- step --config /tmp/nope.toml` stderr contains `/tmp/nope.toml` and `"specified via --config"`

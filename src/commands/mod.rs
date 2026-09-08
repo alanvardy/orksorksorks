@@ -72,8 +72,8 @@ pub fn select_command(cli: &Cli) -> Result<String, Error> {
         Commands::Branch => branch_command(),
         Commands::ArtifactDirectory => artifact_directory_command(),
         Commands::Step { config } => {
-            let (path, _) = crate::config_dir::config_file_path(config.as_deref())?;
-            step_command(&path)
+            let (path, source) = crate::config_dir::config_file_path(config.as_deref())?;
+            step_command(&path, source)
         }
     }
 }
@@ -160,8 +160,11 @@ fn determine_step(config: &Config, artifact_dir: &str) -> Result<String, Error> 
 /// `--config` argument or the config-directory default (`config_dir.rs`).
 /// `read_config` runs before git resolution so a missing/unreadable config
 /// deterministically fails with `"io"`.
-fn step_command(path: &std::path::Path) -> Result<String, Error> {
-    let cfg = crate::config::read_config(path)?;
+fn step_command(
+    path: &std::path::Path,
+    source: crate::config_dir::ConfigPathSource,
+) -> Result<String, Error> {
+    let cfg = crate::config::read_config(path, source)?;
     let cwd = std::env::current_dir()?;
     let artifact_dir = artifact_dir_path(&cwd, &git::current_branch()?);
     determine_step(&cfg, &artifact_dir)
