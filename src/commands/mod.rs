@@ -93,17 +93,13 @@ pub enum Commands {
     Prompt {
         /// Step name override; defaults to the current step derived from
         /// present trigger artifacts
-        #[arg(value_name = "STEP_NAME")]
-        step_name: Option<String>,
+        #[arg(long, value_name = "STEP")]
+        step: Option<String>,
 
         /// Path to the TOML config file; defaults to the config directory
         /// (the same resolution as `init`)
         #[arg(long, value_name = "CONFIG")]
         config: Option<PathBuf>,
-
-        /// Override the current step (from `config.steps`) by name
-        #[arg(long, value_name = "STEP")]
-        step: Option<String>,
     },
 }
 
@@ -131,14 +127,10 @@ fn select_command_with_env(cli: &Cli, env: &crate::config_dir::ConfigEnv) -> Res
                 crate::config_dir::config_file_path_with_env(config.as_deref(), env)?;
             thinking_command(&path, source, step.clone())
         }
-        Commands::Prompt {
-            step_name,
-            config,
-            step,
-        } => {
+        Commands::Prompt { step, config } => {
             let (path, source) =
                 crate::config_dir::config_file_path_with_env(config.as_deref(), env)?;
-            prompt_command(&path, source, step_name.clone(), step.clone())
+            prompt_command(&path, source, step.clone())
         }
     }
 }
@@ -258,9 +250,12 @@ fn resolve_step(config: &Config, name: &str) -> Result<Step, Error> {
 fn step_command(
     path: &std::path::Path,
     source: crate::config_dir::ConfigPathSource,
-    _step: Option<String>,
+    step: Option<String>,
 ) -> Result<String, Error> {
     let cfg = crate::config::read_config(path, source)?;
+    if let Some(name) = step {
+        return Ok(resolve_step(&cfg, &name)?.name);
+    }
     let cwd = std::env::current_dir()?;
     let artifact_dir = artifact_dir_path(&cwd, &git::current_branch()?);
     let step = determine_step(&cfg, &artifact_dir)?;
@@ -273,12 +268,16 @@ fn step_command(
 fn model_command(
     path: &std::path::Path,
     source: crate::config_dir::ConfigPathSource,
-    _step: Option<String>,
+    step: Option<String>,
 ) -> Result<String, Error> {
     let cfg = crate::config::read_config(path, source)?;
-    let cwd = std::env::current_dir()?;
-    let artifact_dir = artifact_dir_path(&cwd, &git::current_branch()?);
-    let step = determine_step(&cfg, &artifact_dir)?;
+    let step = if let Some(name) = step {
+        resolve_step(&cfg, &name)?
+    } else {
+        let cwd = std::env::current_dir()?;
+        let artifact_dir = artifact_dir_path(&cwd, &git::current_branch()?);
+        determine_step(&cfg, &artifact_dir)?
+    };
     let model = resolve_model(&cfg, &step.model)?;
     Ok(model.model)
 }
@@ -289,12 +288,16 @@ fn model_command(
 fn thinking_command(
     path: &std::path::Path,
     source: crate::config_dir::ConfigPathSource,
-    _step: Option<String>,
+    step: Option<String>,
 ) -> Result<String, Error> {
     let cfg = crate::config::read_config(path, source)?;
-    let cwd = std::env::current_dir()?;
-    let artifact_dir = artifact_dir_path(&cwd, &git::current_branch()?);
-    let step = determine_step(&cfg, &artifact_dir)?;
+    let step = if let Some(name) = step {
+        resolve_step(&cfg, &name)?
+    } else {
+        let cwd = std::env::current_dir()?;
+        let artifact_dir = artifact_dir_path(&cwd, &git::current_branch()?);
+        determine_step(&cfg, &artifact_dir)?
+    };
     let model = resolve_model(&cfg, &step.model)?;
     Ok(model.thinking)
 }
@@ -312,19 +315,18 @@ fn resolve_prompt(config: &Config, name: &str) -> Result<String, Error> {
 
 /// Handle the `prompt` subcommand: read the config and return the prompt
 /// content for the current step, or for the explicitly named step when
-/// `step_name` is provided as an override. Output is prefixed with a
+/// `--step <NAME>` is provided as an override. Output is prefixed with a
 /// frontmatter block (important-variables header, step, branch, artifact
 /// directory) above the prompt content unless `show_frontmatter = false`
 /// in the config.
 fn prompt_command(
     path: &std::path::Path,
     source: crate::config_dir::ConfigPathSource,
-    step_name: Option<String>,
-    _step: Option<String>,
+    step: Option<String>,
 ) -> Result<String, Error> {
     let cfg = crate::config::read_config(path, source)?;
-    let name = if let Some(name) = step_name {
-        name
+    let name = if let Some(name) = step {
+        resolve_step(&cfg, &name)?.name
     } else {
         // No explicit step: derive the current step from trigger artifacts,
         // exactly like `step`/`model`/`thinking`.
@@ -972,10 +974,10 @@ mod tests {
     }
 
     #[test]
-    fn cli_try_parse_accepts_prompt() {
+    fn cli_try_parse_rejects_prompt_positional() {
         use clap::Parser;
         let result = Cli::try_parse_from(["orksorksorks", "prompt", "questions"]);
-        assert!(result.is_ok());
+        assert!(result.is_err());
     }
 
     #[test]
@@ -983,32 +985,9 @@ mod tests {
         use clap::Parser;
         let cli = Cli::try_parse_from(["orksorksorks", "prompt"]).unwrap();
         match cli.command {
-            Commands::Prompt {
-                step_name,
-                config,
-                step,
-            } => {
-                assert_eq!(step_name, None);
-                assert_eq!(config, None);
+            Commands::Prompt { step, config } => {
                 assert_eq!(step, None);
-            }
-            _ => panic!("expected Commands::Prompt"),
-        }
-    }
-
-    #[test]
-    fn cli_try_parse_prompt_reads_step_name() {
-        use clap::Parser;
-        let cli = Cli::try_parse_from(["orksorksorks", "prompt", "design"]).unwrap();
-        match cli.command {
-            Commands::Prompt {
-                step_name,
-                config,
-                step,
-            } => {
-                assert_eq!(step_name, Some("design".to_string()));
                 assert_eq!(config, None);
-                assert_eq!(step, None);
             }
             _ => panic!("expected Commands::Prompt"),
         }
@@ -1020,20 +999,16 @@ mod tests {
         let cli = Cli::try_parse_from([
             "orksorksorks",
             "prompt",
+            "--step",
             "questions",
             "--config",
             "custom.toml",
         ])
         .unwrap();
         match cli.command {
-            Commands::Prompt {
-                step_name,
-                config,
-                step,
-            } => {
-                assert_eq!(step_name, Some("questions".to_string()));
+            Commands::Prompt { step, config } => {
+                assert_eq!(step, Some("questions".to_string()));
                 assert_eq!(config, Some(std::path::PathBuf::from("custom.toml")));
-                assert_eq!(step, None);
             }
             _ => panic!("expected Commands::Prompt"),
         }
@@ -1061,23 +1036,112 @@ mod tests {
 
     #[test]
     fn select_command_routes_prompt() {
-        // step_name None — the primary auto-derive mode: dispatch still
+        // No explicit step — the primary auto-derive mode: dispatch still
         // happens before any git/artifact logic, so the missing config
         // error proves the arm reached prompt_command.
         let cli = Cli {
             json: false,
             command: Commands::Prompt {
-                step_name: None,
+                step: None,
                 config: Some(std::path::PathBuf::from(
                     "definitely-missing-config-file.toml",
                 )),
-                step: None,
             },
         };
         // prompt_command reads the (missing) config first → "io", proving
         // the arm dispatched to prompt_command.
         let err = select_command(&cli).unwrap_err();
         assert_eq!(err.source, "io");
+    }
+
+    #[test]
+    fn step_command_flag_succeeds_in_non_git_dir() {
+        // A tempdir with NO git repo: bare step would fail in git::current_branch,
+        // so success proves `--step` never shells out to git or reads cwd.
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("orksorksorks.toml"),
+            "version = \"0.1.0\"\n[[steps]]\nname = \"one\"\ntrigger_artifact = \"first.txt\"\nmodel = \"small\"\n",
+        )
+        .unwrap();
+        let out = step_command(
+            &dir.path().join("orksorksorks.toml"),
+            crate::config_dir::ConfigPathSource::ExplicitFlag,
+            Some("one".to_string()),
+        )
+        .unwrap();
+        assert_eq!(out, "one");
+    }
+
+    #[test]
+    fn step_command_flag_unknown_name_tags_step() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("orksorksorks.toml"),
+            "version = \"0.1.0\"\n",
+        )
+        .unwrap();
+        let err = step_command(
+            &dir.path().join("orksorksorks.toml"),
+            crate::config_dir::ConfigPathSource::ExplicitFlag,
+            Some("nope".to_string()),
+        )
+        .unwrap_err();
+        assert_eq!(err.source, "step");
+        assert!(
+            err.message.contains("no step named \"nope\""),
+            "{}",
+            err.message
+        );
+    }
+
+    #[test]
+    fn prompt_command_step_flag_unknown_name_tags_step() {
+        // `--step nope` with no [[steps]]: fails in resolve_step with the
+        // `"step"` tag — before resolve_prompt ever runs.
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("orksorksorks.toml"),
+            "version = \"0.1.0\"\n",
+        )
+        .unwrap();
+        let err = prompt_command(
+            &dir.path().join("orksorksorks.toml"),
+            crate::config_dir::ConfigPathSource::ExplicitFlag,
+            Some("nope".to_string()),
+        )
+        .unwrap_err();
+        assert_eq!(err.source, "step");
+        assert!(
+            err.message.contains("no step named \"nope\""),
+            "{}",
+            err.message
+        );
+    }
+
+    #[test]
+    fn prompt_command_step_flag_known_step_missing_prompt_tags_prompt() {
+        // `--step one` where step `one` exists but has no [[prompts]] entry:
+        // resolve_step succeeds and resolve_prompt fails with the `"prompt"`
+        // tag — proving the two `"step"`-tag-free paths differ by message.
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("orksorksorks.toml"),
+            "version = \"0.1.0\"\n[[steps]]\nname = \"one\"\ntrigger_artifact = \"first.txt\"\nmodel = \"small\"\n",
+        )
+        .unwrap();
+        let err = prompt_command(
+            &dir.path().join("orksorksorks.toml"),
+            crate::config_dir::ConfigPathSource::ExplicitFlag,
+            Some("one".to_string()),
+        )
+        .unwrap_err();
+        assert_eq!(err.source, "prompt");
+        assert!(
+            err.message.contains("no prompt named \"one\""),
+            "{}",
+            err.message
+        );
     }
 
     #[test]
