@@ -364,6 +364,51 @@ fn prompt_flag_returns_content() {
 }
 
 #[test]
+fn prompt_flag_with_hidden_frontmatter_works_in_non_git_dir() {
+    // `--step` skips step derivation. With `show_frontmatter = false` there
+    // is no branch/artifact block, so this works in a git-less dir — the
+    // documented git-free path for `prompt --step`.
+    let dir = tempfile::tempdir().unwrap();
+    write_config_hidden(dir.path());
+
+    let mut cmd = Command::cargo_bin("orksorksorks").unwrap();
+    let output = cmd
+        .args(["prompt", "--step", "one", "--config", "orksorksorks.toml"])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+    cmd.assert().success();
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("# Prompt for step one"), "stdout: {stdout}");
+    assert!(
+        !stdout.contains("## Important variables"),
+        "stdout: {stdout}"
+    );
+    assert!(!stdout.contains('\x1b'), "stdout: {stdout}");
+}
+
+#[test]
+fn prompt_flag_with_default_frontmatter_requires_git() {
+    // With the default `show_frontmatter = true`, the frontmatter block still
+    // resolves the git branch even when `--step` is given, so a git-less dir
+    // fails with a "git" error (pins the scoped contract in design.md).
+    let dir = tempfile::tempdir().unwrap();
+    write_config(dir.path());
+
+    let output = Command::cargo_bin("orksorksorks")
+        .unwrap()
+        .args(["prompt", "--step", "one", "--config", "orksorksorks.toml"])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("Error from git"), "stderr: {stderr}");
+}
+
+#[test]
 fn prompt_rejects_positional_step_name() {
     let dir = init_git_repo();
     write_config(dir.path());
