@@ -19,10 +19,6 @@ use errors::Error;
 pub struct CommandResult {
     /// Command output: `Ok` data on success, typed error on failure.
     pub result: Result<String, Error>,
-    /// Ring the terminal bell on success.
-    pub bell_success: bool,
-    /// Ring the terminal bell on failure.
-    pub bell_failure: bool,
     /// Emit the result as a JSON envelope instead of text.
     pub json: bool,
 }
@@ -32,13 +28,9 @@ fn output_text(result: &Result<String, Error>) {
     match result {
         Ok(data) => {
             println!("{data}");
-            // Terminal bell on success
-            print!("\x07");
         }
         Err(e) => {
             eprintln!("\n\n{e}");
-            // Terminal bell on failure
-            print!("\x07");
         }
     }
 }
@@ -73,14 +65,10 @@ fn run_command(cli: commands::Cli) {
     let cr = match result {
         Ok(data) => CommandResult {
             result: Ok(data),
-            bell_success: true,
-            bell_failure: false,
             json,
         },
         Err(e) => CommandResult {
             result: Err(e),
-            bell_success: false,
-            bell_failure: true,
             json,
         },
     };

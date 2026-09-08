@@ -41,7 +41,7 @@ fn branch_prints_current_branch() {
     cmd.assert().success();
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert_eq!(stdout.trim_end_matches('\x07').trim_end(), "feature/foo");
+    assert_eq!(stdout.trim_end(), "feature/foo");
     assert!(!stdout.contains('\x1b'), "stdout: {stdout}");
 }
 

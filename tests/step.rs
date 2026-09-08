@@ -54,7 +54,7 @@ fn step_prints_name_of_step_with_present_artifact() {
     cmd.assert().success();
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert_eq!(stdout.trim_end_matches('\x07').trim_end(), "two");
+    assert_eq!(stdout.trim_end(), "two");
     assert!(!stdout.contains('\x1b'), "stdout: {stdout}");
 }
 
@@ -121,7 +121,7 @@ fn step_with_default_returns_default_when_no_artifacts() {
     cmd.assert().success();
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert_eq!(stdout.trim_end_matches('\x07').trim_end(), "default");
+    assert_eq!(stdout.trim_end(), "default");
     assert!(!stdout.contains('\x1b'), "stdout: {stdout}");
 }
 
@@ -154,7 +154,7 @@ fn step_real_artifact_beats_default_step() {
     cmd.assert().success();
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert_eq!(stdout.trim_end_matches('\x07').trim_end(), "two");
+    assert_eq!(stdout.trim_end(), "two");
 }
 
 /// Without `--config`, `step` resolves the config through the config
@@ -189,7 +189,7 @@ fn step_without_flag_reads_config_dir() {
     cmd.assert().success();
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert_eq!(stdout.trim_end_matches('\x07').trim_end(), "one");
+    assert_eq!(stdout.trim_end(), "one");
     assert!(!stdout.contains('\x1b'), "stdout: {stdout}");
 }
 
