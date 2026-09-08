@@ -59,6 +59,10 @@ pub enum Commands {
         /// (the same resolution as `init`)
         #[arg(long, value_name = "CONFIG")]
         config: Option<PathBuf>,
+
+        /// Override the current step (from `config.steps`) by name
+        #[arg(long, value_name = "STEP")]
+        step: Option<String>,
     },
 
     /// Print the model for the current step (from `config.models`)
@@ -67,6 +71,10 @@ pub enum Commands {
         /// (the same resolution as `init`)
         #[arg(long, value_name = "CONFIG")]
         config: Option<PathBuf>,
+
+        /// Override the current step (from `config.steps`) by name
+        #[arg(long, value_name = "STEP")]
+        step: Option<String>,
     },
 
     /// Print the thinking budget for the current step (from `config.models`)
@@ -75,6 +83,10 @@ pub enum Commands {
         /// (the same resolution as `init`)
         #[arg(long, value_name = "CONFIG")]
         config: Option<PathBuf>,
+
+        /// Override the current step (from `config.steps`) by name
+        #[arg(long, value_name = "STEP")]
+        step: Option<String>,
     },
 
     /// Print the prompt for the current step (from `config.prompts`)
@@ -88,6 +100,10 @@ pub enum Commands {
         /// (the same resolution as `init`)
         #[arg(long, value_name = "CONFIG")]
         config: Option<PathBuf>,
+
+        /// Override the current step (from `config.steps`) by name
+        #[arg(long, value_name = "STEP")]
+        step: Option<String>,
     },
 }
 
@@ -100,25 +116,29 @@ fn select_command_with_env(cli: &Cli, env: &crate::config_dir::ConfigEnv) -> Res
         }
         Commands::Branch => branch_command(),
         Commands::ArtifactDirectory => artifact_directory_command(),
-        Commands::Step { config } => {
+        Commands::Step { config, step } => {
             let (path, source) =
                 crate::config_dir::config_file_path_with_env(config.as_deref(), env)?;
-            step_command(&path, source)
+            step_command(&path, source, step.clone())
         }
-        Commands::Model { config } => {
+        Commands::Model { config, step } => {
             let (path, source) =
                 crate::config_dir::config_file_path_with_env(config.as_deref(), env)?;
-            model_command(&path, source)
+            model_command(&path, source, step.clone())
         }
-        Commands::Thinking { config } => {
+        Commands::Thinking { config, step } => {
             let (path, source) =
                 crate::config_dir::config_file_path_with_env(config.as_deref(), env)?;
-            thinking_command(&path, source)
+            thinking_command(&path, source, step.clone())
         }
-        Commands::Prompt { step_name, config } => {
+        Commands::Prompt {
+            step_name,
+            config,
+            step,
+        } => {
             let (path, source) =
                 crate::config_dir::config_file_path_with_env(config.as_deref(), env)?;
-            prompt_command(&path, source, step_name.clone())
+            prompt_command(&path, source, step_name.clone(), step.clone())
         }
     }
 }
@@ -238,6 +258,7 @@ fn resolve_step(config: &Config, name: &str) -> Result<Step, Error> {
 fn step_command(
     path: &std::path::Path,
     source: crate::config_dir::ConfigPathSource,
+    _step: Option<String>,
 ) -> Result<String, Error> {
     let cfg = crate::config::read_config(path, source)?;
     let cwd = std::env::current_dir()?;
@@ -252,6 +273,7 @@ fn step_command(
 fn model_command(
     path: &std::path::Path,
     source: crate::config_dir::ConfigPathSource,
+    _step: Option<String>,
 ) -> Result<String, Error> {
     let cfg = crate::config::read_config(path, source)?;
     let cwd = std::env::current_dir()?;
@@ -267,6 +289,7 @@ fn model_command(
 fn thinking_command(
     path: &std::path::Path,
     source: crate::config_dir::ConfigPathSource,
+    _step: Option<String>,
 ) -> Result<String, Error> {
     let cfg = crate::config::read_config(path, source)?;
     let cwd = std::env::current_dir()?;
@@ -297,6 +320,7 @@ fn prompt_command(
     path: &std::path::Path,
     source: crate::config_dir::ConfigPathSource,
     step_name: Option<String>,
+    _step: Option<String>,
 ) -> Result<String, Error> {
     let cfg = crate::config::read_config(path, source)?;
     let name = if let Some(name) = step_name {
@@ -632,7 +656,7 @@ mod tests {
         use clap::Parser;
         let cli = Cli::try_parse_from(["orksorksorks", "step", "--config", "custom.toml"]).unwrap();
         match cli.command {
-            Commands::Step { config } => {
+            Commands::Step { config, .. } => {
                 assert_eq!(config, Some(std::path::PathBuf::from("custom.toml")));
             }
             _ => panic!("expected Commands::Step"),
@@ -644,7 +668,7 @@ mod tests {
         use clap::Parser;
         let cli = Cli::try_parse_from(["orksorksorks", "step"]).unwrap();
         match cli.command {
-            Commands::Step { config } => assert_eq!(config, None),
+            Commands::Step { config, .. } => assert_eq!(config, None),
             _ => panic!("expected Commands::Step"),
         }
     }
@@ -657,12 +681,33 @@ mod tests {
                 config: Some(std::path::PathBuf::from(
                     "definitely-missing-config-file.toml",
                 )),
+                step: None,
             },
         };
         // step_command reads the (missing) config first → "io", proving the
         // arm dispatched to step_command (and not, e.g., branch/artifact_directory).
         let err = select_command(&cli).unwrap_err();
         assert_eq!(err.source, "io");
+    }
+
+    #[test]
+    fn cli_try_parse_step_flag_binds_value() {
+        use clap::Parser;
+        let cli = Cli::try_parse_from(["orksorksorks", "step", "--step", "one"]).unwrap();
+        match cli.command {
+            Commands::Step { step, .. } => assert_eq!(step, Some("one".to_string())),
+            _ => panic!("expected Commands::Step"),
+        }
+    }
+
+    #[test]
+    fn cli_try_parse_step_flag_absent_is_none() {
+        use clap::Parser;
+        let cli = Cli::try_parse_from(["orksorksorks", "step"]).unwrap();
+        match cli.command {
+            Commands::Step { step, .. } => assert_eq!(step, None),
+            _ => panic!("expected Commands::Step"),
+        }
     }
 
     #[test]
@@ -800,6 +845,7 @@ mod tests {
                 config: Some(std::path::PathBuf::from(
                     "definitely-missing-config-file.toml",
                 )),
+                step: None,
             },
         };
         // model_command reads the (missing) config first → "io", proving the
@@ -816,6 +862,7 @@ mod tests {
                 config: Some(std::path::PathBuf::from(
                     "definitely-missing-config-file.toml",
                 )),
+                step: None,
             },
         };
         // thinking_command reads the (missing) config first → "io", proving
@@ -836,7 +883,7 @@ mod tests {
         use clap::Parser;
         let cli = Cli::try_parse_from(["orksorksorks", "model"]).unwrap();
         match cli.command {
-            Commands::Model { config } => assert_eq!(config, None),
+            Commands::Model { config, .. } => assert_eq!(config, None),
             _ => panic!("expected Commands::Model"),
         }
     }
@@ -847,9 +894,29 @@ mod tests {
         let cli =
             Cli::try_parse_from(["orksorksorks", "model", "--config", "custom.toml"]).unwrap();
         match cli.command {
-            Commands::Model { config } => {
+            Commands::Model { config, .. } => {
                 assert_eq!(config, Some(std::path::PathBuf::from("custom.toml")));
             }
+            _ => panic!("expected Commands::Model"),
+        }
+    }
+
+    #[test]
+    fn cli_try_parse_model_step_flag_binds_value() {
+        use clap::Parser;
+        let cli = Cli::try_parse_from(["orksorksorks", "model", "--step", "one"]).unwrap();
+        match cli.command {
+            Commands::Model { step, .. } => assert_eq!(step, Some("one".to_string())),
+            _ => panic!("expected Commands::Model"),
+        }
+    }
+
+    #[test]
+    fn cli_try_parse_model_step_flag_absent_is_none() {
+        use clap::Parser;
+        let cli = Cli::try_parse_from(["orksorksorks", "model"]).unwrap();
+        match cli.command {
+            Commands::Model { step, .. } => assert_eq!(step, None),
             _ => panic!("expected Commands::Model"),
         }
     }
@@ -866,7 +933,7 @@ mod tests {
         use clap::Parser;
         let cli = Cli::try_parse_from(["orksorksorks", "thinking"]).unwrap();
         match cli.command {
-            Commands::Thinking { config } => assert_eq!(config, None),
+            Commands::Thinking { config, .. } => assert_eq!(config, None),
             _ => panic!("expected Commands::Thinking"),
         }
     }
@@ -877,9 +944,29 @@ mod tests {
         let cli =
             Cli::try_parse_from(["orksorksorks", "thinking", "--config", "custom.toml"]).unwrap();
         match cli.command {
-            Commands::Thinking { config } => {
+            Commands::Thinking { config, .. } => {
                 assert_eq!(config, Some(std::path::PathBuf::from("custom.toml")));
             }
+            _ => panic!("expected Commands::Thinking"),
+        }
+    }
+
+    #[test]
+    fn cli_try_parse_thinking_step_flag_binds_value() {
+        use clap::Parser;
+        let cli = Cli::try_parse_from(["orksorksorks", "thinking", "--step", "one"]).unwrap();
+        match cli.command {
+            Commands::Thinking { step, .. } => assert_eq!(step, Some("one".to_string())),
+            _ => panic!("expected Commands::Thinking"),
+        }
+    }
+
+    #[test]
+    fn cli_try_parse_thinking_step_flag_absent_is_none() {
+        use clap::Parser;
+        let cli = Cli::try_parse_from(["orksorksorks", "thinking"]).unwrap();
+        match cli.command {
+            Commands::Thinking { step, .. } => assert_eq!(step, None),
             _ => panic!("expected Commands::Thinking"),
         }
     }
@@ -896,9 +983,14 @@ mod tests {
         use clap::Parser;
         let cli = Cli::try_parse_from(["orksorksorks", "prompt"]).unwrap();
         match cli.command {
-            Commands::Prompt { step_name, config } => {
+            Commands::Prompt {
+                step_name,
+                config,
+                step,
+            } => {
                 assert_eq!(step_name, None);
                 assert_eq!(config, None);
+                assert_eq!(step, None);
             }
             _ => panic!("expected Commands::Prompt"),
         }
@@ -909,9 +1001,14 @@ mod tests {
         use clap::Parser;
         let cli = Cli::try_parse_from(["orksorksorks", "prompt", "design"]).unwrap();
         match cli.command {
-            Commands::Prompt { step_name, config } => {
+            Commands::Prompt {
+                step_name,
+                config,
+                step,
+            } => {
                 assert_eq!(step_name, Some("design".to_string()));
                 assert_eq!(config, None);
+                assert_eq!(step, None);
             }
             _ => panic!("expected Commands::Prompt"),
         }
@@ -929,10 +1026,35 @@ mod tests {
         ])
         .unwrap();
         match cli.command {
-            Commands::Prompt { step_name, config } => {
+            Commands::Prompt {
+                step_name,
+                config,
+                step,
+            } => {
                 assert_eq!(step_name, Some("questions".to_string()));
                 assert_eq!(config, Some(std::path::PathBuf::from("custom.toml")));
+                assert_eq!(step, None);
             }
+            _ => panic!("expected Commands::Prompt"),
+        }
+    }
+
+    #[test]
+    fn cli_try_parse_prompt_step_flag_binds_value() {
+        use clap::Parser;
+        let cli = Cli::try_parse_from(["orksorksorks", "prompt", "--step", "one"]).unwrap();
+        match cli.command {
+            Commands::Prompt { step, .. } => assert_eq!(step, Some("one".to_string())),
+            _ => panic!("expected Commands::Prompt"),
+        }
+    }
+
+    #[test]
+    fn cli_try_parse_prompt_step_flag_absent_is_none() {
+        use clap::Parser;
+        let cli = Cli::try_parse_from(["orksorksorks", "prompt"]).unwrap();
+        match cli.command {
+            Commands::Prompt { step, .. } => assert_eq!(step, None),
             _ => panic!("expected Commands::Prompt"),
         }
     }
@@ -949,6 +1071,7 @@ mod tests {
                 config: Some(std::path::PathBuf::from(
                     "definitely-missing-config-file.toml",
                 )),
+                step: None,
             },
         };
         // prompt_command reads the (missing) config first → "io", proving
