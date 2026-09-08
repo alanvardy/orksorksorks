@@ -1,6 +1,7 @@
 use crate::config_dir::ConfigPathSource;
 use crate::errors::Error;
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 
 /// A single named step, gated on the presence of a trigger artifact.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -99,6 +100,129 @@ pub fn read_config(path: &std::path::Path, source: ConfigPathSource) -> Result<C
     };
     let config = toml::from_str(&contents)?;
     Ok(config)
+}
+
+/// The config format version this build reads and writes.
+pub const CONFIG_VERSION: &str = "0.1.0";
+
+impl Config {
+    /// Validate this config, failing fast with a `config:*` tag on the first
+    /// violation in a fixed deterministic order.
+    ///
+    /// Returns `Ok(())` when the config is consistent, otherwise the first
+    /// error: `config:version`, `config:duplicate-name`, `config:empty-name`,
+    /// `config:empty-model`, `config:duplicate-trigger`,
+    /// `config:multiple-default`, `config:missing-prompt`, or
+    /// `config:missing-model`.
+    pub(crate) fn validate(&self) -> Result<(), Error> {
+        if self.version != CONFIG_VERSION {
+            return Err(Error::new(
+                "config:version",
+                &format!(
+                    "unsupported config version {:?} (expected {:?})",
+                    self.version, CONFIG_VERSION
+                ),
+            ));
+        }
+
+        let step_names: Vec<&str> = self.steps.iter().map(|s| s.name.as_str()).collect();
+        let model_names: Vec<&str> = self.models.iter().map(|m| m.name.as_str()).collect();
+        let prompt_names: Vec<&str> = self.prompts.iter().map(|p| p.name.as_str()).collect();
+
+        if let Some(msg) = duplicated_name(&step_names, "steps")
+            .or_else(|| duplicated_name(&prompt_names, "prompts"))
+            .or_else(|| duplicated_name(&model_names, "models"))
+        {
+            return Err(Error::new("config:duplicate-name", &msg));
+        }
+
+        if let Some(msg) = empty_name(&step_names, "steps")
+            .or_else(|| empty_name(&prompt_names, "prompts"))
+            .or_else(|| empty_name(&model_names, "models"))
+        {
+            return Err(Error::new("config:empty-name", &msg));
+        }
+
+        for step in &self.steps {
+            if step.model.is_empty() {
+                return Err(Error::new(
+                    "config:empty-model",
+                    &format!("step {:?} has an empty model reference", step.name),
+                ));
+            }
+        }
+
+        let mut triggers: HashSet<&str> = HashSet::new();
+        for step in &self.steps {
+            if !step.trigger_artifact.is_empty() && !triggers.insert(&step.trigger_artifact) {
+                return Err(Error::new(
+                    "config:duplicate-trigger",
+                    &format!(
+                        "trigger artifact {:?} is used by more than one step",
+                        step.trigger_artifact
+                    ),
+                ));
+            }
+        }
+
+        let default_count = self
+            .steps
+            .iter()
+            .filter(|s| s.trigger_artifact.is_empty())
+            .count();
+        if default_count > 1 {
+            return Err(Error::new(
+                "config:multiple-default",
+                &format!(
+                    "{default_count} steps have an empty trigger artifact (at most one default step is allowed)"
+                ),
+            ));
+        }
+
+        let prompt_set: HashSet<&str> = prompt_names.iter().copied().collect();
+        for step in &self.steps {
+            if !prompt_set.contains(step.name.as_str()) {
+                return Err(Error::new(
+                    "config:missing-prompt",
+                    &format!("step {:?} has no matching prompt", step.name),
+                ));
+            }
+        }
+
+        let model_set: HashSet<&str> = model_names.iter().copied().collect();
+        for step in &self.steps {
+            if !model_set.contains(step.model.as_str()) {
+                return Err(Error::new(
+                    "config:missing-model",
+                    &format!(
+                        "step {:?} references unknown model {:?}",
+                        step.name, step.model
+                    ),
+                ));
+            }
+        }
+
+        Ok(())
+    }
+}
+
+/// Return a message naming the duplicated value, if `names` has a duplicate.
+fn duplicated_name(names: &[&str], section: &str) -> Option<String> {
+    let mut seen = HashSet::new();
+    for &name in names {
+        if !seen.insert(name) {
+            return Some(format!("duplicate name {name:?} in [{section}]"));
+        }
+    }
+    None
+}
+
+/// Return a message identifying `section` if any listed name is empty.
+fn empty_name(names: &[&str], section: &str) -> Option<String> {
+    if names.contains(&"") {
+        return Some(format!("[{section}] contains an entry with an empty name"));
+    }
+    None
 }
 
 #[cfg(test)]
@@ -305,5 +429,165 @@ mod tests {
         .unwrap();
         let err = read_config(&path, ConfigPathSource::ExplicitFlag).unwrap_err();
         assert_eq!(err.source, "toml::de");
+    }
+
+    fn validate_toml(s: &str) -> Result<(), Error> {
+        toml::from_str::<Config>(s).unwrap().validate()
+    }
+
+    /// A minimal consistent config used as the happy-path baseline.
+    const VALID_TOML: &str = concat!(
+        "version = \"0.1.0\"\n",
+        "[[steps]]\n",
+        "name = \"one\"\n",
+        "trigger_artifact = \"a.txt\"\n",
+        "model = \"small\"\n",
+        "[[models]]\n",
+        "name = \"small\"\n",
+        "model = \"openrouter/deepseek/flash\"\n",
+        "thinking = \"high\"\n",
+        "[[prompts]]\n",
+        "name = \"one\"\n",
+        "content = \"one\"\n",
+    );
+
+    #[test]
+    fn validate_accepts_consistent_config() {
+        assert!(validate_toml(VALID_TOML).is_ok());
+    }
+
+    #[test]
+    fn validate_rejects_wrong_version() {
+        let err = validate_toml("version = \"9.9.9\"\n").unwrap_err();
+        assert_eq!(err.source, "config:version");
+    }
+
+    #[test]
+    fn validate_rejects_duplicate_step_name() {
+        let err = validate_toml(concat!(
+            "version = \"0.1.0\"\n",
+            "[[steps]]\nname = \"one\"\ntrigger_artifact = \"a.txt\"\nmodel = \"small\"\n",
+            "[[steps]]\nname = \"one\"\ntrigger_artifact = \"b.txt\"\nmodel = \"small\"\n",
+            "[[models]]\nname = \"small\"\nmodel = \"openrouter/deepseek/flash\"\nthinking = \"high\"\n",
+            "[[prompts]]\nname = \"one\"\ncontent = \"one\"\n",
+        ))
+        .unwrap_err();
+        assert_eq!(err.source, "config:duplicate-name");
+    }
+
+    #[test]
+    fn validate_rejects_duplicate_prompt_name() {
+        let err = validate_toml(concat!(
+            "version = \"0.1.0\"\n",
+            "[[steps]]\nname = \"one\"\ntrigger_artifact = \"a.txt\"\nmodel = \"small\"\n",
+            "[[models]]\nname = \"small\"\nmodel = \"openrouter/deepseek/flash\"\nthinking = \"high\"\n",
+            "[[prompts]]\nname = \"one\"\ncontent = \"one\"\n",
+            "[[prompts]]\nname = \"one\"\ncontent = \"two\"\n",
+        ))
+        .unwrap_err();
+        assert_eq!(err.source, "config:duplicate-name");
+    }
+
+    #[test]
+    fn validate_rejects_duplicate_model_name() {
+        let err = validate_toml(concat!(
+            "version = \"0.1.0\"\n",
+            "[[steps]]\nname = \"one\"\ntrigger_artifact = \"a.txt\"\nmodel = \"small\"\n",
+            "[[models]]\nname = \"small\"\nmodel = \"openrouter/deepseek/flash\"\nthinking = \"high\"\n",
+            "[[models]]\nname = \"small\"\nmodel = \"openrouter/deepseek/pro\"\nthinking = \"high\"\n",
+            "[[prompts]]\nname = \"one\"\ncontent = \"one\"\n",
+        ))
+        .unwrap_err();
+        assert_eq!(err.source, "config:duplicate-name");
+    }
+
+    #[test]
+    fn validate_rejects_empty_step_name() {
+        let err = validate_toml(concat!(
+            "version = \"0.1.0\"\n",
+            "[[steps]]\nname = \"\"\ntrigger_artifact = \"a.txt\"\nmodel = \"small\"\n",
+            "[[models]]\nname = \"small\"\nmodel = \"openrouter/deepseek/flash\"\nthinking = \"high\"\n",
+            "[[prompts]]\nname = \"one\"\ncontent = \"one\"\n",
+        ))
+        .unwrap_err();
+        assert_eq!(err.source, "config:empty-name");
+    }
+
+    #[test]
+    fn validate_rejects_empty_model_reference() {
+        let err = validate_toml(concat!(
+            "version = \"0.1.0\"\n",
+            "[[steps]]\nname = \"one\"\ntrigger_artifact = \"a.txt\"\nmodel = \"\"\n",
+            "[[models]]\nname = \"small\"\nmodel = \"openrouter/deepseek/flash\"\nthinking = \"high\"\n",
+            "[[prompts]]\nname = \"one\"\ncontent = \"one\"\n",
+        ))
+        .unwrap_err();
+        assert_eq!(err.source, "config:empty-model");
+    }
+
+    #[test]
+    fn validate_rejects_duplicate_trigger() {
+        let err = validate_toml(concat!(
+            "version = \"0.1.0\"\n",
+            "[[steps]]\nname = \"one\"\ntrigger_artifact = \"a.txt\"\nmodel = \"small\"\n",
+            "[[steps]]\nname = \"two\"\ntrigger_artifact = \"a.txt\"\nmodel = \"high\"\n",
+            "[[models]]\nname = \"small\"\nmodel = \"openrouter/deepseek/flash\"\nthinking = \"high\"\n",
+            "[[models]]\nname = \"high\"\nmodel = \"openrouter/deepseek/pro\"\nthinking = \"high\"\n",
+            "[[prompts]]\nname = \"one\"\ncontent = \"one\"\n",
+            "[[prompts]]\nname = \"two\"\ncontent = \"two\"\n",
+        ))
+        .unwrap_err();
+        assert_eq!(err.source, "config:duplicate-trigger");
+    }
+
+    #[test]
+    fn validate_rejects_multiple_defaults() {
+        let err = validate_toml(concat!(
+            "version = \"0.1.0\"\n",
+            "[[steps]]\nname = \"one\"\ntrigger_artifact = \"\"\nmodel = \"small\"\n",
+            "[[steps]]\nname = \"two\"\ntrigger_artifact = \"\"\nmodel = \"high\"\n",
+            "[[models]]\nname = \"small\"\nmodel = \"openrouter/deepseek/flash\"\nthinking = \"high\"\n",
+            "[[models]]\nname = \"high\"\nmodel = \"openrouter/deepseek/pro\"\nthinking = \"high\"\n",
+            "[[prompts]]\nname = \"one\"\ncontent = \"one\"\n",
+            "[[prompts]]\nname = \"two\"\ncontent = \"two\"\n",
+        ))
+        .unwrap_err();
+        assert_eq!(err.source, "config:multiple-default");
+    }
+
+    #[test]
+    fn validate_rejects_missing_prompt() {
+        let err = validate_toml(concat!(
+            "version = \"0.1.0\"\n",
+            "[[steps]]\nname = \"one\"\ntrigger_artifact = \"a.txt\"\nmodel = \"small\"\n",
+            "[[models]]\nname = \"small\"\nmodel = \"openrouter/deepseek/flash\"\nthinking = \"high\"\n",
+        ))
+        .unwrap_err();
+        assert_eq!(err.source, "config:missing-prompt");
+    }
+
+    #[test]
+    fn validate_rejects_missing_model() {
+        let err = validate_toml(concat!(
+            "version = \"0.1.0\"\n",
+            "[[steps]]\nname = \"one\"\ntrigger_artifact = \"a.txt\"\nmodel = \"nope\"\n",
+            "[[prompts]]\nname = \"one\"\ncontent = \"one\"\n",
+        ))
+        .unwrap_err();
+        assert_eq!(err.source, "config:missing-model");
+    }
+
+    #[test]
+    fn validate_errors_are_deterministic_first_error_wins() {
+        // Violates BOTH duplicate-name and missing-prompt: the earlier rule
+        // (duplicate-name) must win deterministically.
+        let err = validate_toml(concat!(
+            "version = \"0.1.0\"\n",
+            "[[steps]]\nname = \"one\"\ntrigger_artifact = \"a.txt\"\nmodel = \"small\"\n",
+            "[[steps]]\nname = \"one\"\ntrigger_artifact = \"b.txt\"\nmodel = \"small\"\n",
+            "[[models]]\nname = \"small\"\nmodel = \"openrouter/deepseek/flash\"\nthinking = \"high\"\n",
+        ))
+        .unwrap_err();
+        assert_eq!(err.source, "config:duplicate-name");
     }
 }
