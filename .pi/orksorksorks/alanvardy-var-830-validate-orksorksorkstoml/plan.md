@@ -548,7 +548,7 @@ fn valid_config_succeeds() {
 
 ### Verification
 #### Automated
-- [ ] `scripts/test.sh` green — new `tests/config_validation.rs` pins the `config:*` contract end-to-end
+- [x] `scripts/test.sh` green — new `tests/config_validation.rs` pins the `config:*` contract end-to-end
 
 #### Manual
 - [ ] For two tags, `cargo run -- step --config bad.toml` → exit 1 + tag on stderr; `cargo run -- step --config bad.toml -j` → `{"error":{"message":…,"source":"config:<tag>"}}` on stdout
@@ -560,7 +560,7 @@ fn valid_config_succeeds() {
 - [x] After Phase 1: `cargo nextest run --no-tests pass -E 'test(config)'`
 - [x] After Phase 2: `cargo nextest run --no-tests pass -E 'test(config)'`
 - [x] After Phase 3: full `scripts/test.sh`
-- [ ] After Phase 4: full `scripts/test.sh`
+- [x] After Phase 4: full `scripts/test.sh`
 
 ## Deviations from `structure.md` (and why)
 
