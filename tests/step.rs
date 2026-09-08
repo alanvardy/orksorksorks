@@ -345,6 +345,61 @@ fn step_flag_works_in_non_git_dir() {
 }
 
 #[test]
+fn step_flag_works_on_detached_head() {
+    // A detached HEAD has no branch name (`git branch --show-current` is
+    // empty), so bare `step` fails in git resolution; `--step` skips git and
+    // succeeds. Directly substantiates design.md's detached-HEAD claim.
+    let dir = tempfile::tempdir().unwrap();
+    write_config(dir.path());
+
+    let run = |args: &[&str]| {
+        let out = std::process::Command::new("git")
+            .args(args)
+            .current_dir(dir.path())
+            .output()
+            .unwrap();
+        assert!(
+            out.status.success(),
+            "git {args:?} failed: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+    };
+    run(&["init"]);
+    std::fs::write(dir.path().join("README"), "x").unwrap();
+    run(&["add", "."]);
+    run(&[
+        "-c",
+        "user.name=t",
+        "-c",
+        "user.email=t@t",
+        "commit",
+        "-qm",
+        "init",
+    ]);
+    run(&["checkout", "--detach"]);
+
+    let mut cmd = Command::cargo_bin("orksorksorks").unwrap();
+    let output = cmd
+        .args([
+            "step",
+            "--step",
+            "one",
+            "--config",
+            "orksorksorks.toml",
+            "-j",
+        ])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+    cmd.assert().success();
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let v: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    assert_eq!(v["data"].as_str(), Some("one"));
+    assert!(!stdout.contains('\x1b'), "stdout: {stdout}");
+}
+
+#[test]
 fn step_flag_unknown_text_error_goes_to_stderr() {
     let dir = tempfile::tempdir().unwrap();
     write_config(dir.path());

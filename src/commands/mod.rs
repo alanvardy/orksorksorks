@@ -91,15 +91,14 @@ pub enum Commands {
 
     /// Print the prompt for the current step (from `config.prompts`)
     Prompt {
-        /// Step name override; defaults to the current step derived from
-        /// present trigger artifacts
-        #[arg(long, value_name = "STEP")]
-        step: Option<String>,
-
         /// Path to the TOML config file; defaults to the config directory
         /// (the same resolution as `init`)
         #[arg(long, value_name = "CONFIG")]
         config: Option<PathBuf>,
+
+        /// Override the current step (from `config.steps`) by name
+        #[arg(long, value_name = "STEP")]
+        step: Option<String>,
     },
 }
 
@@ -240,8 +239,10 @@ fn resolve_step(config: &Config, name: &str) -> Result<Step, Error> {
     Err(Error::new("step", &format!("no step named {name:?}")))
 }
 
-/// Handle the `step` subcommand: read the config, derive the artifact
-/// directory from cwd + git branch, and return the current step name.
+/// Handle the `step` subcommand: read the config and return the current step
+/// name. With `--step <NAME>`, the name replaces artifact-based derivation
+/// (no git is consulted); otherwise the step is derived from cwd + git
+/// branch + trigger artifacts.
 ///
 /// `path` is the already-resolved config location: either the explicit
 /// `--config` argument or the config-directory default (`config_dir.rs`).
@@ -253,18 +254,20 @@ fn step_command(
     step: Option<String>,
 ) -> Result<String, Error> {
     let cfg = crate::config::read_config(path, source)?;
-    if let Some(name) = step {
-        return Ok(resolve_step(&cfg, &name)?.name);
-    }
-    let cwd = std::env::current_dir()?;
-    let artifact_dir = artifact_dir_path(&cwd, &git::current_branch()?);
-    let step = determine_step(&cfg, &artifact_dir)?;
+    let step = if let Some(name) = step {
+        resolve_step(&cfg, &name)?
+    } else {
+        let cwd = std::env::current_dir()?;
+        let artifact_dir = artifact_dir_path(&cwd, &git::current_branch()?);
+        determine_step(&cfg, &artifact_dir)?
+    };
     Ok(step.name)
 }
 
-/// Handle the `model` subcommand: determine the current step, read the
-/// model *name* it references, and resolve that name against `config.models`
-/// to the concrete model string.
+/// Handle the `model` subcommand: determine the current step (via
+/// `--step <NAME>` when given, else artifact derivation), read the model
+/// *name* it references, and resolve that name against `config.models` to
+/// the concrete model string.
 fn model_command(
     path: &std::path::Path,
     source: crate::config_dir::ConfigPathSource,
@@ -282,9 +285,10 @@ fn model_command(
     Ok(model.model)
 }
 
-/// Handle the `thinking` subcommand: determine the current step, read the
-/// model *name* it references, and resolve that name against `config.models`
-/// to its thinking-budget value.
+/// Handle the `thinking` subcommand: determine the current step (via
+/// `--step <NAME>` when given, else artifact derivation), read the model
+/// *name* it references, and resolve that name against `config.models` to
+/// its thinking-budget value.
 fn thinking_command(
     path: &std::path::Path,
     source: crate::config_dir::ConfigPathSource,
@@ -319,6 +323,11 @@ fn resolve_prompt(config: &Config, name: &str) -> Result<String, Error> {
 /// frontmatter block (important-variables header, step, branch, artifact
 /// directory) above the prompt content unless `show_frontmatter = false`
 /// in the config.
+///
+/// `--step` skips only *step derivation*: the frontmatter block still
+/// resolves the git branch, so with the default `show_frontmatter = true`,
+/// `prompt --step <NAME>` needs a git checkout (unlike `step`/`model`/
+/// `thinking`, which consult git only to derive the step).
 fn prompt_command(
     path: &std::path::Path,
     source: crate::config_dir::ConfigPathSource,
