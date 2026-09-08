@@ -252,8 +252,8 @@ Add the same pair for `model`, `thinking`, and `prompt` (match `Commands::Prompt
 ### Verification
 
 #### Automated
-- [ ] `scripts/test.sh` passes — the full existing `tests/{step,model,prompt}.rs` suite is untouched and green
-- [ ] `cargo nextest run cli_try_parse` passes
+- [x] `scripts/test.sh` passes — the full existing `tests/{step,model,prompt}.rs` suite is untouched and green
+- [x] `cargo nextest run cli_try_parse` passes
 
 #### Manual
 - [ ] `cargo run -- step --help`, `cargo run -- prompt --help` show the `--step <STEP>` option; `prompt --help` still shows the `[STEP_NAME]` positional this stage.
