@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 
 /// A single named step, gated on the presence of a trigger artifact.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct Step {
     /// Human-readable name returned by the `step` subcommand.
     pub name: String,
@@ -15,6 +16,7 @@ pub struct Step {
 
 /// A named model definition, referenced by `Step::model`.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct Model {
     /// Key that `Step::model` references to select this model.
     pub name: String,
@@ -26,6 +28,7 @@ pub struct Model {
 
 /// A single named prompt, keyed by step name.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct Prompt {
     /// Step name this prompt belongs to; also the lookup key.
     pub name: String,
@@ -38,6 +41,7 @@ pub struct Prompt {
 /// The `version` field tracks the config format version so future
 /// migrations can detect and upgrade older files.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct Config {
     /// Config format version.
     pub version: String,
@@ -288,5 +292,18 @@ mod tests {
         assert_eq!(err.source, "io");
         assert!(err.message.contains("resolved from XDG_CONFIG_HOME"));
         assert!(err.message.contains(&path.display().to_string()));
+    }
+
+    #[test]
+    fn unknown_step_key_is_rejected_as_toml_de() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("orksorksorks.toml");
+        std::fs::write(
+            &path,
+            "version = \"0.1.0\"\n[[steps]]\nname = \"one\"\ntrigger_artifact = \"a.txt\"\nmodel = \"small\"\nbogus = \"x\"\n",
+        )
+        .unwrap();
+        let err = read_config(&path, ConfigPathSource::ExplicitFlag).unwrap_err();
+        assert_eq!(err.source, "toml::de");
     }
 }
