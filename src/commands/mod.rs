@@ -216,6 +216,18 @@ fn resolve_model(config: &Config, name: &str) -> Result<crate::config::Model, Er
     Err(Error::new("model", &format!("no model named {name:?}")))
 }
 
+/// Look up the named step in `config.steps` and return the matching entry.
+/// First match wins; an unknown name errors with the `"step"` tag (the same
+/// tag `determine_step` uses, so callers discriminate by message).
+fn resolve_step(config: &Config, name: &str) -> Result<Step, Error> {
+    for s in config.steps.iter() {
+        if s.name == name {
+            return Ok(s.clone());
+        }
+    }
+    Err(Error::new("step", &format!("no step named {name:?}")))
+}
+
 /// Handle the `step` subcommand: read the config, derive the artifact
 /// directory from cwd + git branch, and return the current step name.
 ///
@@ -713,6 +725,71 @@ mod tests {
         let err = resolve_model(&config, "large").unwrap_err();
         assert_eq!(err.source, "model");
         assert!(err.message.contains("no model named"), "{}", err.message);
+    }
+
+    #[test]
+    fn resolve_step_returns_matching_step() {
+        let config = Config {
+            version: "0.1.0".to_string(),
+            show_frontmatter: true,
+            steps: vec![Step {
+                name: "one".to_string(),
+                trigger_artifact: "first.txt".to_string(),
+                model: "small".to_string(),
+            }],
+            models: vec![],
+            prompts: vec![],
+        };
+        let step = resolve_step(&config, "one").unwrap();
+        assert_eq!(step.name, "one");
+        assert_eq!(step.trigger_artifact, "first.txt");
+        assert_eq!(step.model, "small");
+    }
+
+    #[test]
+    fn resolve_step_unknown_name_tags_step_error() {
+        let config = Config {
+            version: "0.1.0".to_string(),
+            show_frontmatter: true,
+            steps: vec![Step {
+                name: "one".to_string(),
+                trigger_artifact: String::new(),
+                model: "small".to_string(),
+            }],
+            models: vec![],
+            prompts: vec![],
+        };
+        let err = resolve_step(&config, "nope").unwrap_err();
+        assert_eq!(err.source, "step");
+        assert!(
+            err.message.contains("no step named \"nope\""),
+            "{}",
+            err.message
+        );
+    }
+
+    #[test]
+    fn resolve_step_first_match_wins() {
+        let config = Config {
+            version: "0.1.0".to_string(),
+            show_frontmatter: true,
+            steps: vec![
+                Step {
+                    name: "dup".to_string(),
+                    trigger_artifact: String::new(),
+                    model: "small".to_string(),
+                },
+                Step {
+                    name: "dup".to_string(),
+                    trigger_artifact: String::new(),
+                    model: "high".to_string(),
+                },
+            ],
+            models: vec![],
+            prompts: vec![],
+        };
+        let step = resolve_step(&config, "dup").unwrap();
+        assert_eq!(step.model, "small");
     }
 
     #[test]
