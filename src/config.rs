@@ -1,3 +1,4 @@
+use crate::config_dir::ConfigPathSource;
 use crate::errors::Error;
 use serde::{Deserialize, Serialize};
 
@@ -34,10 +35,24 @@ impl Default for Config {
 
 /// Read and deserialize a `Config` from disk.
 ///
-/// Missing/unreadable files map to `"io"` (via `From<std::io::Error>`);
-/// malformed TOML maps to `"toml::de"` (via `From<toml::de::Error>`).
-pub fn read_config(path: &std::path::Path) -> Result<Config, Error> {
-    let contents = std::fs::read_to_string(path)?;
+/// Missing/unreadable files map to `"io"` with the resolved path and its
+/// resolution source embedded in the message; malformed TOML maps to
+/// `"toml::de"` (via `From<toml::de::Error>`).
+pub fn read_config(path: &std::path::Path, source: ConfigPathSource) -> Result<Config, Error> {
+    let contents = match std::fs::read_to_string(path) {
+        Ok(c) => c,
+        Err(e) => {
+            return Err(Error::new(
+                "io",
+                &format!(
+                    "could not read config file at {} ({}): {}",
+                    path.display(),
+                    source,
+                    e
+                ),
+            ));
+        }
+    };
     let config = toml::from_str(&contents)?;
     Ok(config)
 }
@@ -98,7 +113,7 @@ mod tests {
             "version = \"0.1.0\"\n[[steps]]\nname = \"one\"\ntrigger_artifact = \"a.txt\"\n",
         )
         .unwrap();
-        let config = read_config(&path).unwrap();
+        let config = read_config(&path, ConfigPathSource::ExplicitFlag).unwrap();
         assert_eq!(config.steps.len(), 1);
         assert_eq!(config.steps[0].name, "one");
         assert_eq!(config.steps[0].trigger_artifact, "a.txt");
@@ -107,8 +122,19 @@ mod tests {
     #[test]
     fn read_config_missing_file_tags_io() {
         let dir = tempfile::tempdir().unwrap();
-        let err = read_config(&dir.path().join("nope.toml")).unwrap_err();
+        let path = dir.path().join("nope.toml");
+        let err = read_config(&path, ConfigPathSource::ExplicitFlag).unwrap_err();
         assert_eq!(err.source, "io");
+        assert!(
+            err.message.contains(&path.display().to_string()),
+            "message should contain path: {}",
+            err.message
+        );
+        assert!(
+            err.message.contains("specified via --config"),
+            "message should contain resolution: {}",
+            err.message
+        );
     }
 
     #[test]
@@ -121,7 +147,17 @@ mod tests {
             "version = \"0.1.0\"\n[[steps]]\ntrigger_artifact = \"a.txt\"\n",
         )
         .unwrap();
-        let err = read_config(&path).unwrap_err();
+        let err = read_config(&path, ConfigPathSource::XdgConfigHome).unwrap_err();
         assert_eq!(err.source, "toml::de");
+    }
+
+    #[test]
+    fn read_config_io_error_contains_xdg_source() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("orksorksorks.toml");
+        let err = read_config(&path, ConfigPathSource::XdgConfigHome).unwrap_err();
+        assert_eq!(err.source, "io");
+        assert!(err.message.contains("resolved from XDG_CONFIG_HOME"));
+        assert!(err.message.contains(&path.display().to_string()));
     }
 }
