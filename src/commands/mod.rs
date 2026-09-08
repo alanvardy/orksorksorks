@@ -1071,7 +1071,12 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(
             dir.path().join("orksorksorks.toml"),
-            "version = \"0.1.0\"\n[[steps]]\nname = \"one\"\ntrigger_artifact = \"first.txt\"\nmodel = \"small\"\n",
+            concat!(
+                "version = \"0.1.0\"\n",
+                "[[steps]]\nname = \"one\"\ntrigger_artifact = \"first.txt\"\nmodel = \"small\"\n",
+                "[[models]]\nname = \"small\"\nmodel = \"openrouter/deepseek/flash\"\nthinking = \"high\"\n",
+                "[[prompts]]\nname = \"one\"\ncontent = \"one\"\n",
+            ),
         )
         .unwrap();
         let out = step_command(
@@ -1130,10 +1135,12 @@ mod tests {
     }
 
     #[test]
-    fn prompt_command_step_flag_known_step_missing_prompt_tags_prompt() {
+    fn prompt_command_step_flag_known_step_missing_prompt_tags_validation() {
         // `--step one` where step `one` exists but has no [[prompts]] entry:
-        // resolve_step succeeds and resolve_prompt fails with the `"prompt"`
-        // tag — proving the two `"step"`-tag-free paths differ by message.
+        // the config is invalid, so `read_config` fails fast with
+        // `config:missing-prompt` before resolve_step/resolve_prompt run. The
+        // runtime `"prompt"` tag is unreachable through the validated
+        // `--step` path, since every step must have a matching prompt.
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(
             dir.path().join("orksorksorks.toml"),
@@ -1146,9 +1153,9 @@ mod tests {
             Some("one".to_string()),
         )
         .unwrap_err();
-        assert_eq!(err.source, "prompt");
+        assert_eq!(err.source, "config:missing-prompt");
         assert!(
-            err.message.contains("no prompt named \"one\""),
+            err.message.contains("has no matching prompt"),
             "{}",
             err.message
         );
