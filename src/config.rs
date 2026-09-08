@@ -41,6 +41,9 @@ pub struct Prompt {
 pub struct Config {
     /// Config format version.
     pub version: String,
+    /// Whether `prompt` output is prefixed with a context frontmatter block.
+    #[serde(default = "default_true")]
+    pub show_frontmatter: bool,
     /// Ordered steps; the current step is the last whose artifact exists.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub steps: Vec<Step>,
@@ -52,10 +55,17 @@ pub struct Config {
     pub prompts: Vec<Prompt>,
 }
 
+/// Serde default path for `Config::show_frontmatter`: frontmatter is
+/// shown unless the config explicitly disables it.
+fn default_true() -> bool {
+    true
+}
+
 impl Default for Config {
     fn default() -> Self {
         Self {
             version: "0.1.0".to_string(),
+            show_frontmatter: true,
             steps: Vec::new(),
             models: Vec::new(),
             prompts: Vec::new(),
@@ -98,6 +108,7 @@ mod tests {
         let toml_str = toml::to_string(&config).unwrap();
         assert!(toml_str.contains("version"), "{toml_str}");
         assert!(toml_str.contains(r#""0.1.0""#), "{toml_str}");
+        assert!(toml_str.contains("show_frontmatter = true"), "{toml_str}");
     }
 
     #[test]
@@ -112,6 +123,7 @@ mod tests {
     fn steps_round_trip() {
         let config = Config {
             version: "0.1.0".to_string(),
+            show_frontmatter: true,
             steps: vec![
                 Step {
                     name: "one".to_string(),
@@ -135,6 +147,7 @@ mod tests {
     #[test]
     fn missing_steps_deserializes_to_empty_vec() {
         let config: Config = toml::from_str("version = \"0.1.0\"\n").unwrap();
+        assert!(config.show_frontmatter);
         assert!(config.steps.is_empty());
         assert!(config.models.is_empty());
         assert!(config.prompts.is_empty());
@@ -160,6 +173,7 @@ mod tests {
     fn prompts_round_trip() {
         let config = Config {
             version: "0.1.0".to_string(),
+            show_frontmatter: true,
             steps: vec![],
             models: vec![],
             prompts: vec![Prompt {
@@ -202,6 +216,7 @@ mod tests {
     fn models_round_trip() {
         let config = Config {
             version: "0.1.0".to_string(),
+            show_frontmatter: true,
             steps: vec![],
             models: vec![Model {
                 name: "small".to_string(),
@@ -211,6 +226,24 @@ mod tests {
             prompts: vec![],
         };
         let serialized = toml::to_string(&config).unwrap();
+        let deserialized: Config = toml::from_str(&serialized).unwrap();
+        assert_eq!(config, deserialized);
+    }
+
+    #[test]
+    fn show_frontmatter_false_round_trips() {
+        let config = Config {
+            version: "0.1.0".to_string(),
+            show_frontmatter: false,
+            steps: vec![],
+            models: vec![],
+            prompts: vec![],
+        };
+        let serialized = toml::to_string(&config).unwrap();
+        assert!(
+            serialized.contains("show_frontmatter = false"),
+            "{serialized}"
+        );
         let deserialized: Config = toml::from_str(&serialized).unwrap();
         assert_eq!(config, deserialized);
     }

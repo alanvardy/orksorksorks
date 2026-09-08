@@ -21,11 +21,45 @@ fn artifact_dir(dir: &std::path::Path) -> std::path::PathBuf {
 
 /// Config with two steps (`one`, `two`) whose names each have a matching
 /// `[[prompts]]` entry (multi-line TOML content).
+///
+/// The `show_frontmatter` key is omitted, so this exercises the serde
+/// default of `true` (see `prompt_frontmatter_shown_by_default`).
 fn write_config(dir: &std::path::Path) {
     std::fs::write(
         dir.join("orksorksorks.toml"),
         concat!(
             "version = \"0.1.0\"\n",
+            "[[steps]]\n",
+            "name = \"one\"\n",
+            "trigger_artifact = \"first.txt\"\n",
+            "model = \"small\"\n",
+            "[[steps]]\n",
+            "name = \"two\"\n",
+            "trigger_artifact = \"second.txt\"\n",
+            "model = \"high\"\n",
+            "[[prompts]]\n",
+            "name = \"one\"\n",
+            "content = \"\"\"\n",
+            "# Prompt for step one\n",
+            "\"\"\"\n",
+            "[[prompts]]\n",
+            "name = \"two\"\n",
+            "content = \"\"\"\n",
+            "# Prompt for step two\n",
+            "\"\"\"\n",
+        ),
+    )
+    .unwrap();
+}
+
+/// The same config with `show_frontmatter = false`, exercising the disabled
+/// frontmatter code path end to end.
+fn write_config_hidden(dir: &std::path::Path) {
+    std::fs::write(
+        dir.join("orksorksorks.toml"),
+        concat!(
+            "version = \"0.1.0\"\n",
+            "show_frontmatter = false\n",
             "[[steps]]\n",
             "name = \"one\"\n",
             "trigger_artifact = \"first.txt\"\n",
@@ -192,6 +226,69 @@ fn prompt_without_flag_reads_config_dir() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
         stdout.contains("# Question — Decompose the Task"),
+        "stdout: {stdout}"
+    );
+    assert!(!stdout.contains('\x1b'), "stdout: {stdout}");
+}
+
+#[test]
+fn prompt_frontmatter_shown_by_default() {
+    let dir = init_git_repo();
+    // No `show_frontmatter` key in the config: the serde default is `true`,
+    // so the frontmatter block must appear above the prompt output.
+    write_config(dir.path());
+    let artifact_dir = artifact_dir(dir.path());
+    std::fs::create_dir_all(&artifact_dir).unwrap();
+    std::fs::write(artifact_dir.join("first.txt"), "").unwrap();
+
+    let mut cmd = Command::cargo_bin("orksorksorks").unwrap();
+    let output = cmd
+        .args(["prompt", "--config", "orksorksorks.toml"])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+    cmd.assert().success();
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.starts_with("step = one\n"), "stdout: {stdout}");
+    assert!(stdout.contains("branch = main\n"), "stdout: {stdout}");
+    // Canonicalize so the comparison matches what the child process sees
+    // through `std::env::current_dir()` (on macOS `/var` → `/private/var`);
+    // same convention as `expected_artifact_directory` in artifact_directory.rs.
+    let canonical = std::fs::canonicalize(dir.path()).unwrap();
+    assert!(
+        stdout.contains(&format!(
+            "artifact_directory = {}/.pi/orksorksorks/main/\n",
+            canonical.display()
+        )),
+        "stdout: {stdout}",
+    );
+    assert!(stdout.contains("# Prompt for step one"), "stdout: {stdout}");
+    assert!(!stdout.contains('\x1b'), "stdout: {stdout}");
+}
+
+#[test]
+fn prompt_frontmatter_hidden_when_show_frontmatter_false() {
+    let dir = init_git_repo();
+    write_config_hidden(dir.path());
+    let artifact_dir = artifact_dir(dir.path());
+    std::fs::create_dir_all(&artifact_dir).unwrap();
+    std::fs::write(artifact_dir.join("first.txt"), "").unwrap();
+
+    let mut cmd = Command::cargo_bin("orksorksorks").unwrap();
+    let output = cmd
+        .args(["prompt", "--config", "orksorksorks.toml"])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+    cmd.assert().success();
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("# Prompt for step one"), "stdout: {stdout}");
+    assert!(!stdout.contains("step = "), "stdout: {stdout}");
+    assert!(!stdout.contains("branch = "), "stdout: {stdout}");
+    assert!(
+        !stdout.contains("artifact_directory = "),
         "stdout: {stdout}"
     );
     assert!(!stdout.contains('\x1b'), "stdout: {stdout}");
