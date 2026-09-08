@@ -315,3 +315,89 @@ fn step_with_missing_config_json_contains_path_in_message() {
         "stdout should have no ANSI: {stdout}"
     );
 }
+
+#[test]
+fn step_flag_works_in_non_git_dir() {
+    // No `.git`: bare `step` would fail in git resolution, so success here
+    // proves `--step` skips current_dir/git/artifact_dir entirely.
+    let dir = tempfile::tempdir().unwrap();
+    write_config(dir.path());
+
+    let mut cmd = Command::cargo_bin("orksorksorks").unwrap();
+    let output = cmd
+        .args([
+            "step",
+            "--step",
+            "one",
+            "--config",
+            "orksorksorks.toml",
+            "-j",
+        ])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+    cmd.assert().success();
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let v: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    assert_eq!(v["data"].as_str(), Some("one"));
+    assert!(!stdout.contains('\x1b'), "stdout: {stdout}");
+}
+
+#[test]
+fn step_flag_unknown_text_error_goes_to_stderr() {
+    let dir = tempfile::tempdir().unwrap();
+    write_config(dir.path());
+
+    let output = Command::cargo_bin("orksorksorks")
+        .unwrap()
+        .args(["step", "--step", "nope", "--config", "orksorksorks.toml"])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.is_empty(),
+        "text error must not go to stdout: {stdout}"
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("no step named \"nope\""),
+        "stderr: {stderr}"
+    );
+}
+
+#[test]
+fn step_flag_unknown_json_error_goes_to_stdout() {
+    let dir = tempfile::tempdir().unwrap();
+    write_config(dir.path());
+
+    let output = Command::cargo_bin("orksorksorks")
+        .unwrap()
+        .args([
+            "step",
+            "--step",
+            "nope",
+            "--config",
+            "orksorksorks.toml",
+            "-j",
+        ])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    assert_eq!(json["error"]["source"].as_str(), Some("step"));
+    assert!(
+        json["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("no step named"),
+        "{json}"
+    );
+    assert!(!stdout.contains('\x1b'), "stdout: {stdout}");
+}

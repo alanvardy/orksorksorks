@@ -588,8 +588,8 @@ fn prompt_rejects_positional_step_name() {
 ### Verification
 
 #### Automated
-- [ ] `scripts/test.sh` passes (full gate: fmt, check, clippy `-D warnings`, nextest)
-- [ ] `cargo nextest run -- --test step --test model --test prompt` passes
+- [x] `scripts/test.sh` passes (full gate: fmt, check, clippy `-D warnings`, nextest)
+- [x] `cargo nextest run -- --test step --test model --test prompt` passes
 
 #### Manual
 - [ ] Build a fixture `orksorksorks.toml` with `one`/`two` steps, `[[models]]`, and a multiline `[[prompts]]`:

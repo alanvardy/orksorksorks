@@ -332,3 +332,46 @@ fn prompt_frontmatter_hidden_when_show_frontmatter_false() {
     );
     assert!(!stdout.contains('\x1b'), "stdout: {stdout}");
 }
+
+#[test]
+fn prompt_flag_returns_content() {
+    // `--step` skips artifact derivation. The prompt output carries the
+    // frontmatter block (default `show_frontmatter`, needs git for the
+    // branch), so run in a git repo and assert containment, not equality.
+    let dir = init_git_repo();
+    write_config(dir.path());
+
+    let mut cmd = Command::cargo_bin("orksorksorks").unwrap();
+    let output = cmd
+        .args([
+            "prompt",
+            "--step",
+            "one",
+            "--config",
+            "orksorksorks.toml",
+            "-j",
+        ])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+    cmd.assert().success();
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let v: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    let data = v["data"].as_str().unwrap();
+    assert!(data.contains("# Prompt for step one"), "data: {data}");
+    assert!(!stdout.contains('\x1b'), "stdout: {stdout}");
+}
+
+#[test]
+fn prompt_rejects_positional_step_name() {
+    let dir = init_git_repo();
+    write_config(dir.path());
+
+    Command::cargo_bin("orksorksorks")
+        .unwrap()
+        .args(["prompt", "one", "--config", "orksorksorks.toml"])
+        .current_dir(dir.path())
+        .assert()
+        .code(2); // clap usage-error exit code
+}
