@@ -118,8 +118,8 @@ fn prompt_without_step_name_no_artifacts_fails() {
 }
 
 #[test]
-fn prompt_with_explicit_step_name_overrides_step() {
-    // Even with a later artifact present, an explicit step name wins.
+fn prompt_with_explicit_step_name_flag_overrides_step() {
+    // Even with a later artifact present, an explicit --step name wins.
     let dir = init_git_repo();
     write_config(dir.path());
     let artifact_dir = artifact_dir(dir.path());
@@ -128,7 +128,7 @@ fn prompt_with_explicit_step_name_overrides_step() {
 
     let mut cmd = Command::cargo_bin("orksorksorks").unwrap();
     let output = cmd
-        .args(["prompt", "one", "--config", "orksorksorks.toml"])
+        .args(["prompt", "--step", "one", "--config", "orksorksorks.toml"])
         .current_dir(dir.path())
         .output()
         .unwrap();
@@ -178,8 +178,9 @@ fn prompt_json_returns_valid_json_with_data_field() {
 }
 
 #[test]
-fn prompt_unknown_step_name_fails() {
+fn prompt_step_flag_unknown_name_fails_with_step_source() {
     let dir = tempfile::tempdir().unwrap();
+    // No [[steps]]: `--step nope` fails in resolve_step, not resolve_prompt.
     std::fs::write(
         dir.path().join("orksorksorks.toml"),
         concat!(
@@ -193,12 +194,19 @@ fn prompt_unknown_step_name_fails() {
     )
     .unwrap();
 
-    Command::cargo_bin("orksorksorks")
+    let output = Command::cargo_bin("orksorksorks")
         .unwrap()
-        .args(["prompt", "nope", "--config", "orksorksorks.toml"])
+        .args(["prompt", "--step", "nope", "--config", "orksorksorks.toml"])
         .current_dir(dir.path())
-        .assert()
-        .failure();
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("no step named \"nope\""),
+        "stderr: {stderr}"
+    );
 }
 
 /// Without `--config`, `prompt` resolves the config through the config

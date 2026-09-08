@@ -464,8 +464,8 @@ fn prompt_step_flag_unknown_name_fails_with_step_source() {
 ### Verification
 
 #### Automated
-- [ ] `scripts/test.sh` passes (includes the rewritten `tests/prompt.rs`)
-- [ ] `cargo nextest run step_command_flag` and `cargo nextest run prompt` pass
+- [x] `scripts/test.sh` passes (includes the rewritten `tests/prompt.rs`)
+- [x] `cargo nextest run step_command_flag` and `cargo nextest run prompt` pass
 
 #### Manual
 - [ ] `cargo run -- step --config <fixture> --step one` prints `one` from a repo with no matching artifacts
