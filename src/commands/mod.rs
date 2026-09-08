@@ -277,7 +277,9 @@ fn resolve_prompt(config: &Config, name: &str) -> Result<String, Error> {
 
 /// Handle the `prompt` subcommand: read the config and return the prompt
 /// content for the current step, or for the explicitly named step when
-/// `step_name` is provided as an override.
+/// `step_name` is provided as an override. Output is prefixed with a
+/// frontmatter block (step, branch, artifact directory) above the prompt
+/// content unless `show_frontmatter = false` in the config.
 fn prompt_command(
     path: &std::path::Path,
     source: crate::config_dir::ConfigPathSource,
@@ -293,7 +295,24 @@ fn prompt_command(
         let artifact_dir = artifact_dir_path(&cwd, &git::current_branch()?);
         determine_step(&cfg, &artifact_dir)?.name
     };
-    resolve_prompt(&cfg, &name)
+    let content = resolve_prompt(&cfg, &name)?;
+
+    // Frontmatter carries the run context (step, branch, artifact dir) above
+    // the prompt output unless disabled by `show_frontmatter = false`.
+    // Branch/artifact resolution is deferred until after the prompt resolves
+    // so an unknown prompt keeps failing with its `"prompt"` error instead
+    // of a git error. `step` is the effective prompt name (the explicit
+    // override when given, else the derived step).
+    if cfg.show_frontmatter {
+        let cwd = std::env::current_dir()?;
+        let branch = git::current_branch()?;
+        let artifact_dir = artifact_dir_path(&cwd, &branch);
+        return Ok(format!(
+            "step = {}\nbranch = {}\nartifact_directory = {}\n\n{}",
+            name, branch, artifact_dir, content
+        ));
+    }
+    Ok(content)
 }
 
 #[cfg(test)]
@@ -434,6 +453,7 @@ mod tests {
         std::fs::write(dir.path().join("first.txt"), "").unwrap();
         let config = Config {
             version: "0.1.0".to_string(),
+            show_frontmatter: true,
             steps: vec![
                 Step {
                     name: "one".to_string(),
@@ -460,6 +480,7 @@ mod tests {
         std::fs::write(dir.path().join("second.txt"), "").unwrap();
         let config = Config {
             version: "0.1.0".to_string(),
+            show_frontmatter: true,
             steps: vec![
                 Step {
                     name: "one".to_string(),
@@ -484,6 +505,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let config = Config {
             version: "0.1.0".to_string(),
+            show_frontmatter: true,
             steps: vec![
                 Step {
                     name: "one".to_string(),
@@ -512,6 +534,7 @@ mod tests {
         std::fs::write(dir.path().join("first.txt"), "").unwrap();
         let config = Config {
             version: "0.1.0".to_string(),
+            show_frontmatter: true,
             steps: vec![
                 Step {
                     name: "one".to_string(),
@@ -539,6 +562,7 @@ mod tests {
         std::fs::write(dir.path().join("second.txt"), "").unwrap();
         let config = Config {
             version: "0.1.0".to_string(),
+            show_frontmatter: true,
             steps: vec![
                 Step {
                     name: "default".to_string(),
@@ -563,6 +587,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let config = Config {
             version: "0.1.0".to_string(),
+            show_frontmatter: true,
             steps: vec![
                 Step {
                     name: "one".to_string(),
@@ -632,6 +657,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let config = Config {
             version: "0.1.0".to_string(),
+            show_frontmatter: true,
             steps: vec![Step {
                 name: "one".to_string(),
                 trigger_artifact: "first.txt".to_string(),
@@ -654,6 +680,7 @@ mod tests {
     fn resolve_model_returns_model_for_matching_name() {
         let config = Config {
             version: "0.1.0".to_string(),
+            show_frontmatter: true,
             steps: vec![],
             models: vec![crate::config::Model {
                 name: "small".to_string(),
@@ -673,6 +700,7 @@ mod tests {
     fn resolve_model_missing_name_errors_with_model_tag() {
         let config = Config {
             version: "0.1.0".to_string(),
+            show_frontmatter: true,
             steps: vec![],
             models: vec![crate::config::Model {
                 name: "small".to_string(),
@@ -855,6 +883,7 @@ mod tests {
     fn resolve_prompt_returns_content_for_matching_name() {
         let config = Config {
             version: "0.1.0".to_string(),
+            show_frontmatter: true,
             steps: vec![],
             models: vec![],
             prompts: vec![crate::config::Prompt {
@@ -872,6 +901,7 @@ mod tests {
     fn resolve_prompt_missing_name_errors_with_prompt_tag() {
         let config = Config {
             version: "0.1.0".to_string(),
+            show_frontmatter: true,
             steps: vec![],
             models: vec![],
             prompts: vec![crate::config::Prompt {
