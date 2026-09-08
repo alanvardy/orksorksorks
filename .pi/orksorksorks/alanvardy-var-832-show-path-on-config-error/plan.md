@@ -372,8 +372,8 @@ fn step_with_missing_config_json_contains_path_in_message() {
 
 ### Verification
 #### Automated
-- [ ] `cargo nextest run` (full test suite) passes
-- [ ] `scripts/test.sh` passes (final gate — fmt, check, clippy `-D warnings`, nextest, forbidden-strings)
+- [x] `cargo nextest run` (full test suite) passes
+- [x] `scripts/test.sh` passes (final gate — fmt, check, clippy `-D warnings`, nextest, forbidden-strings)
 
 #### Manual
 - [ ] `cargo run -- step --config /tmp/nope.toml` — stderr shows path + "specified via --config"
