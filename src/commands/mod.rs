@@ -106,16 +106,19 @@ fn select_command_with_env(cli: &Cli, env: &crate::config_dir::ConfigEnv) -> Res
             step_command(&path, source)
         }
         Commands::Model { config } => {
-            let path = crate::config_dir::config_file_path(config.as_deref())?;
-            model_command(&path)
+            let (path, source) =
+                crate::config_dir::config_file_path_with_env(config.as_deref(), env)?;
+            model_command(&path, source)
         }
         Commands::Thinking { config } => {
-            let path = crate::config_dir::config_file_path(config.as_deref())?;
-            thinking_command(&path)
+            let (path, source) =
+                crate::config_dir::config_file_path_with_env(config.as_deref(), env)?;
+            thinking_command(&path, source)
         }
         Commands::Prompt { step_name, config } => {
-            let path = crate::config_dir::config_file_path(config.as_deref())?;
-            prompt_command(&path, step_name.clone())
+            let (path, source) =
+                crate::config_dir::config_file_path_with_env(config.as_deref(), env)?;
+            prompt_command(&path, source, step_name.clone())
         }
     }
 }
@@ -234,8 +237,11 @@ fn step_command(
 /// Handle the `model` subcommand: determine the current step, read the
 /// model *name* it references, and resolve that name against `config.models`
 /// to the concrete model string.
-fn model_command(path: &std::path::Path) -> Result<String, Error> {
-    let cfg = crate::config::read_config(path)?;
+fn model_command(
+    path: &std::path::Path,
+    source: crate::config_dir::ConfigPathSource,
+) -> Result<String, Error> {
+    let cfg = crate::config::read_config(path, source)?;
     let cwd = std::env::current_dir()?;
     let artifact_dir = artifact_dir_path(&cwd, &git::current_branch()?);
     let step = determine_step(&cfg, &artifact_dir)?;
@@ -246,8 +252,11 @@ fn model_command(path: &std::path::Path) -> Result<String, Error> {
 /// Handle the `thinking` subcommand: determine the current step, read the
 /// model *name* it references, and resolve that name against `config.models`
 /// to its thinking-budget value.
-fn thinking_command(path: &std::path::Path) -> Result<String, Error> {
-    let cfg = crate::config::read_config(path)?;
+fn thinking_command(
+    path: &std::path::Path,
+    source: crate::config_dir::ConfigPathSource,
+) -> Result<String, Error> {
+    let cfg = crate::config::read_config(path, source)?;
     let cwd = std::env::current_dir()?;
     let artifact_dir = artifact_dir_path(&cwd, &git::current_branch()?);
     let step = determine_step(&cfg, &artifact_dir)?;
@@ -269,8 +278,12 @@ fn resolve_prompt(config: &Config, name: &str) -> Result<String, Error> {
 /// Handle the `prompt` subcommand: read the config and return the prompt
 /// content for the current step, or for the explicitly named step when
 /// `step_name` is provided as an override.
-fn prompt_command(path: &std::path::Path, step_name: Option<String>) -> Result<String, Error> {
-    let cfg = crate::config::read_config(path)?;
+fn prompt_command(
+    path: &std::path::Path,
+    source: crate::config_dir::ConfigPathSource,
+    step_name: Option<String>,
+) -> Result<String, Error> {
+    let cfg = crate::config::read_config(path, source)?;
     let name = if let Some(name) = step_name {
         name
     } else {

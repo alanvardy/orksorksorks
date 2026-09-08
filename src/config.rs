@@ -188,7 +188,7 @@ mod tests {
             ),
         )
         .unwrap();
-        let config = read_config(&path).unwrap();
+        let config = read_config(&path, ConfigPathSource::ExplicitFlag).unwrap();
         assert_eq!(config.prompts.len(), 1);
         assert_eq!(config.prompts[0].name, "questions");
         assert!(
