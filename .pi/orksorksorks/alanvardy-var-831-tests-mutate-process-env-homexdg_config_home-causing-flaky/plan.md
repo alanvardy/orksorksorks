@@ -355,8 +355,8 @@ All other ~29 tests in `src/commands/mod.rs` are unchanged — they pass explici
 
 ### Verification
 #### Automated
-- [ ] `cargo nextest run --no-tests pass commands` — all command tests green
-- [ ] `rg -n 'set_var|remove_var' src/` — no matches anywhere in `src/`
+- [x] `cargo nextest run --no-tests pass commands` — all command tests green
+- [x] `rg -n 'set_var|remove_var' src/` — no matches anywhere in `src/`
 
 #### Manual
 - [ ] `cargo run -- init` (no `--config`) still writes to the config dir and prints `✓ Created …` (unchanged)

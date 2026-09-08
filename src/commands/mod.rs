@@ -62,20 +62,26 @@ pub enum Commands {
     },
 }
 
-/// Route a parsed CLI to its handler and return a success message or error.
-pub fn select_command(cli: &Cli) -> Result<String, Error> {
+/// Route a parsed CLI to its handler, injecting `env` for config-dir resolution.
+fn select_command_with_env(cli: &Cli, env: &crate::config_dir::ConfigEnv) -> Result<String, Error> {
     match &cli.command {
         Commands::Init { config } => {
-            let (path, _) = crate::config_dir::config_file_path(config.as_deref())?;
+            let (path, _) = crate::config_dir::config_file_path_with_env(config.as_deref(), env)?;
             init_command(&path)
         }
         Commands::Branch => branch_command(),
         Commands::ArtifactDirectory => artifact_directory_command(),
         Commands::Step { config } => {
-            let (path, source) = crate::config_dir::config_file_path(config.as_deref())?;
+            let (path, source) =
+                crate::config_dir::config_file_path_with_env(config.as_deref(), env)?;
             step_command(&path, source)
         }
     }
+}
+
+/// Route a parsed CLI to its handler and return a success message or error.
+pub fn select_command(cli: &Cli) -> Result<String, Error> {
+    select_command_with_env(cli, &crate::config_dir::ConfigEnv::from_env())
 }
 
 /// Create a new `orksorksorks.toml` file with default configuration.
@@ -179,14 +185,15 @@ mod tests {
     #[test]
     fn select_command_routes_init() {
         let temp = tempfile::tempdir().unwrap();
-        unsafe {
-            std::env::set_var("XDG_CONFIG_HOME", temp.path());
-        }
+        let env = crate::config_dir::ConfigEnv {
+            xdg_config_home: Some(temp.path().into()),
+            ..Default::default()
+        };
         let cli = Cli {
             json: false,
             command: Commands::Init { config: None },
         };
-        let result = select_command(&cli).unwrap();
+        let result = select_command_with_env(&cli, &env).unwrap();
         let expected_path = temp.path().join("orksorksorks.toml");
         assert!(expected_path.exists(), "config file not created");
         // Under cfg!(test) color is stripped
