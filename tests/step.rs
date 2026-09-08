@@ -211,3 +211,100 @@ fn step_without_flag_ignores_cwd_config() {
         .assert()
         .failure();
 }
+
+/// Text-mode error with explicit --config includes the path and resolution.
+#[test]
+fn step_with_missing_config_shows_path_in_stderr() {
+    let dir = init_git_repo();
+    // The CLI echoes the config path exactly as passed (no canonicalization),
+    // so pass the absolute path and assert it verbatim in stderr.
+    let missing = dir.path().join("nope.toml");
+
+    let output = Command::cargo_bin("orksorksorks")
+        .unwrap()
+        .arg("step")
+        .arg("--config")
+        .arg(missing.display().to_string())
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains(&missing.display().to_string()),
+        "stderr should contain path: {stderr}"
+    );
+    assert!(
+        stderr.contains("specified via --config"),
+        "stderr should contain resolution: {stderr}"
+    );
+    assert!(
+        !stderr.contains('\x1b'),
+        "stderr should have no ANSI: {stderr}"
+    );
+}
+
+/// Text-mode error with XDG_CONFIG_HOME includes the resolved path and resolution.
+#[test]
+fn step_with_missing_xdg_config_shows_path_in_stderr() {
+    let dir = init_git_repo();
+    let xdg = tempfile::tempdir().unwrap();
+    let config_dir = xdg.path().join("cfg");
+    std::fs::create_dir_all(&config_dir).unwrap();
+    // Config dir exists but no orksorksorks.toml inside it
+
+    let output = Command::cargo_bin("orksorksorks")
+        .unwrap()
+        .arg("step")
+        .current_dir(dir.path())
+        .env("XDG_CONFIG_HOME", &config_dir)
+        .output()
+        .unwrap();
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let expected_path = config_dir.join("orksorksorks.toml");
+    assert!(
+        stderr.contains(&expected_path.display().to_string()),
+        "stderr should contain path: {stderr}"
+    );
+    assert!(
+        stderr.contains("resolved from XDG_CONFIG_HOME"),
+        "stderr should contain resolution: {stderr}"
+    );
+    assert!(
+        !stderr.contains('\x1b'),
+        "stderr should have no ANSI: {stderr}"
+    );
+}
+
+/// JSON error output includes the path in message, no ANSI, and no envelope shape change.
+#[test]
+fn step_with_missing_config_json_contains_path_in_message() {
+    let dir = init_git_repo();
+
+    let output = Command::cargo_bin("orksorksorks")
+        .unwrap()
+        .args(["step", "--config", "nope.toml", "-j"])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    let msg = json["error"]["message"].as_str().unwrap();
+    let src = json["error"]["source"].as_str().unwrap();
+
+    assert_eq!(src, "io");
+    assert!(
+        msg.contains("nope.toml"),
+        "message should contain path: {msg}"
+    );
+    assert!(
+        msg.contains("specified via --config"),
+        "message should contain resolution: {msg}"
+    );
+    assert!(
+        !stdout.contains('\x1b'),
+        "stdout should have no ANSI: {stdout}"
+    );
+}
