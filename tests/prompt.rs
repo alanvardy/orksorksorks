@@ -137,6 +137,9 @@ fn prompt_with_explicit_step_name_overrides_step() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("# Prompt for step one"), "stdout: {stdout}");
     assert!(!stdout.contains('\x1b'), "stdout: {stdout}");
+    // The frontmatter `step` is the effective prompt name: the explicit
+    // override, not the (different) derived step from the present artifact.
+    assert!(stdout.starts_with("step = one\n"), "stdout: {stdout}");
 }
 
 #[test]
@@ -158,6 +161,8 @@ fn prompt_json_returns_valid_json_with_data_field() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     let v: serde_json::Value = serde_json::from_str(&stdout).unwrap();
     let data = v["data"].as_str().unwrap();
+    // The frontmatter block is part of the prompt output in JSON mode too.
+    assert!(data.starts_with("step = one\n"), "data: {data}");
     assert!(data.contains("# Prompt for step one"), "data: {data}");
     assert!(!stdout.contains('\x1b'), "stdout: {stdout}");
 }
