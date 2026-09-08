@@ -66,13 +66,13 @@ pub enum Commands {
 pub fn select_command(cli: &Cli) -> Result<String, Error> {
     match &cli.command {
         Commands::Init { config } => {
-            let path = crate::config_dir::config_file_path(config.as_deref())?;
+            let (path, _) = crate::config_dir::config_file_path(config.as_deref())?;
             init_command(&path)
         }
         Commands::Branch => branch_command(),
         Commands::ArtifactDirectory => artifact_directory_command(),
         Commands::Step { config } => {
-            let path = crate::config_dir::config_file_path(config.as_deref())?;
+            let (path, _) = crate::config_dir::config_file_path(config.as_deref())?;
             step_command(&path)
         }
     }
