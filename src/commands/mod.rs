@@ -278,8 +278,9 @@ fn resolve_prompt(config: &Config, name: &str) -> Result<String, Error> {
 /// Handle the `prompt` subcommand: read the config and return the prompt
 /// content for the current step, or for the explicitly named step when
 /// `step_name` is provided as an override. Output is prefixed with a
-/// frontmatter block (step, branch, artifact directory) above the prompt
-/// content unless `show_frontmatter = false` in the config.
+/// frontmatter block (important-variables header, step, branch, artifact
+/// directory) above the prompt content unless `show_frontmatter = false`
+/// in the config.
 fn prompt_command(
     path: &std::path::Path,
     source: crate::config_dir::ConfigPathSource,
@@ -308,7 +309,7 @@ fn prompt_command(
         let branch = git::current_branch()?;
         let artifact_dir = artifact_dir_path(&cwd, &branch);
         return Ok(format!(
-            "step = {}\nbranch = {}\nartifact_directory = {}\n\n{}",
+            "## Important variables\nUse these everywhere you see $<variable>\nstep = {}\nbranch = {}\nartifact_directory = {}\n\n{}",
             name, branch, artifact_dir, content
         ));
     }
