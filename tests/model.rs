@@ -339,3 +339,57 @@ fn thinking_without_flag_reads_config_dir() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert_eq!(stdout.trim_end_matches('\x07').trim_end(), "high");
 }
+
+#[test]
+fn model_flag_returns_model_string() {
+    // `--step` skips git/artifact resolution, so this works in a git-less dir.
+    let dir = tempfile::tempdir().unwrap();
+    write_config(dir.path());
+
+    let mut cmd = Command::cargo_bin("orksorksorks").unwrap();
+    let output = cmd
+        .args([
+            "model",
+            "--step",
+            "one",
+            "--config",
+            "orksorksorks.toml",
+            "-j",
+        ])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+    cmd.assert().success();
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let v: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    assert_eq!(v["data"].as_str(), Some("openrouter/deepseek/flash"));
+    assert!(!stdout.contains('\x1b'), "stdout: {stdout}");
+}
+
+#[test]
+fn thinking_flag_returns_thinking_budget() {
+    // `--step` skips git/artifact resolution, so this works in a git-less dir.
+    let dir = tempfile::tempdir().unwrap();
+    write_config(dir.path());
+
+    let mut cmd = Command::cargo_bin("orksorksorks").unwrap();
+    let output = cmd
+        .args([
+            "thinking",
+            "--step",
+            "one",
+            "--config",
+            "orksorksorks.toml",
+            "-j",
+        ])
+        .current_dir(dir.path())
+        .output()
+        .unwrap();
+    cmd.assert().success();
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let v: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    assert_eq!(v["data"].as_str(), Some("high"));
+    assert!(!stdout.contains('\x1b'), "stdout: {stdout}");
+}
