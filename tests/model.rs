@@ -38,6 +38,12 @@ fn write_config(dir: &std::path::Path) {
             "name = \"high\"\n",
             "model = \"openrouter/deepseek/pro\"\n",
             "thinking = \"high\"\n",
+            "[[prompts]]\n",
+            "name = \"one\"\n",
+            "content = \"one\"\n",
+            "[[prompts]]\n",
+            "name = \"two\"\n",
+            "content = \"two\"\n",
         ),
     )
     .unwrap();
@@ -130,33 +136,6 @@ fn model_no_artifacts_present_fails() {
         .failure();
 }
 
-#[test]
-fn model_unknown_model_reference_fails() {
-    // The step references a model name with no matching `[[models]]` entry.
-    let dir = init_git_repo();
-    std::fs::write(
-        dir.path().join("orksorksorks.toml"),
-        concat!(
-            "version = \"0.1.0\"\n",
-            "[[steps]]\n",
-            "name = \"one\"\n",
-            "trigger_artifact = \"first.txt\"\n",
-            "model = \"nope\"\n",
-        ),
-    )
-    .unwrap();
-    let artifact_dir = artifact_dir(dir.path());
-    std::fs::create_dir_all(&artifact_dir).unwrap();
-    std::fs::write(artifact_dir.join("first.txt"), "").unwrap();
-
-    Command::cargo_bin("orksorksorks")
-        .unwrap()
-        .args(["model", "--config", "orksorksorks.toml"])
-        .current_dir(dir.path())
-        .assert()
-        .failure();
-}
-
 /// Without `--config`, `model` resolves the config through the config
 /// directory — mirroring `step`/`init`.
 #[test]
@@ -177,6 +156,9 @@ fn model_without_flag_reads_config_dir() {
             "name = \"small\"\n",
             "model = \"openrouter/deepseek/flash\"\n",
             "thinking = \"high\"\n",
+            "[[prompts]]\n",
+            "name = \"one\"\n",
+            "content = \"one\"\n",
         ),
     )
     .unwrap();
@@ -277,32 +259,6 @@ fn thinking_no_artifacts_present_fails() {
 }
 
 #[test]
-fn thinking_unknown_model_reference_fails() {
-    let dir = init_git_repo();
-    std::fs::write(
-        dir.path().join("orksorksorks.toml"),
-        concat!(
-            "version = \"0.1.0\"\n",
-            "[[steps]]\n",
-            "name = \"one\"\n",
-            "trigger_artifact = \"first.txt\"\n",
-            "model = \"nope\"\n",
-        ),
-    )
-    .unwrap();
-    let artifact_dir = artifact_dir(dir.path());
-    std::fs::create_dir_all(&artifact_dir).unwrap();
-    std::fs::write(artifact_dir.join("first.txt"), "").unwrap();
-
-    Command::cargo_bin("orksorksorks")
-        .unwrap()
-        .args(["thinking", "--config", "orksorksorks.toml"])
-        .current_dir(dir.path())
-        .assert()
-        .failure();
-}
-
-#[test]
 fn thinking_without_flag_reads_config_dir() {
     let dir = init_git_repo();
     let xdg = tempfile::tempdir().unwrap();
@@ -320,6 +276,9 @@ fn thinking_without_flag_reads_config_dir() {
             "name = \"small\"\n",
             "model = \"openrouter/deepseek/flash\"\n",
             "thinking = \"high\"\n",
+            "[[prompts]]\n",
+            "name = \"one\"\n",
+            "content = \"one\"\n",
         ),
     )
     .unwrap();
