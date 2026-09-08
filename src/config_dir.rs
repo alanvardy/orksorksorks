@@ -13,20 +13,11 @@ const FILE_NAME: &str = "orksorksorks.toml";
 /// All fields are `None` by default so tests get a clean slate. Production
 /// code populates this via [`ConfigEnv::from_env`]; tests construct it
 /// directly with the values they want to inject.
+#[derive(Default)]
 pub(crate) struct ConfigEnv {
     pub xdg_config_home: Option<OsString>,
     pub home: Option<OsString>,
     pub appdata: Option<OsString>,
-}
-
-impl Default for ConfigEnv {
-    fn default() -> Self {
-        Self {
-            xdg_config_home: None,
-            home: None,
-            appdata: None,
-        }
-    }
 }
 
 impl ConfigEnv {
@@ -80,10 +71,7 @@ impl std::fmt::Display for ConfigPathSource {
 /// from `$XDG_CONFIG_HOME` (absolute only), then `$HOME/.config` (Unix) or
 /// `%APPDATA%` (Windows).
 pub fn config_file_path(explicit: Option<&Path>) -> Result<(PathBuf, ConfigPathSource), Error> {
-    match explicit {
-        Some(path) => Ok((path.to_path_buf(), ConfigPathSource::ExplicitFlag)),
-        None => resolve_config_dir().map(|(dir, source)| (dir.join(FILE_NAME), source)),
-    }
+    config_file_path_with_env(explicit, &ConfigEnv::from_env())
 }
 
 /// Pure resolution core — every env read is a field access on `env`.
@@ -120,9 +108,20 @@ pub(crate) fn resolve_config_dir_with_env(
     ))
 }
 
-/// Read ambient env and resolve the config directory (thin wrapper).
-fn resolve_config_dir() -> Result<(PathBuf, ConfigPathSource), Error> {
-    resolve_config_dir_with_env(&ConfigEnv::from_env())
+/// Explicit-env variant of [`config_file_path`].
+///
+/// `Some(path)` passes through unchanged; `None` resolves the config dir from
+/// the injected `env` and joins [`FILE_NAME`].
+pub(crate) fn config_file_path_with_env(
+    explicit: Option<&Path>,
+    env: &ConfigEnv,
+) -> Result<(PathBuf, ConfigPathSource), Error> {
+    match explicit {
+        Some(path) => Ok((path.to_path_buf(), ConfigPathSource::ExplicitFlag)),
+        None => resolve_config_dir_with_env(env).map(|(dir, source)| {
+            (dir.join(FILE_NAME), source)
+        }),
+    }
 }
 
 #[cfg(test)]
