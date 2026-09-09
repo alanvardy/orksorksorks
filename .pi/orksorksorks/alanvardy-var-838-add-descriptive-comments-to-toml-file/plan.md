@@ -312,8 +312,8 @@ The test path is `tests/init_creates_file.rs`, so `../templates/default.toml` re
 ### Verification
 
 #### Automated
-- [ ] `cargo nextest run init_creates_file` passes (both byte assertions now compare against `include_str!`)
-- [ ] `./scripts/test.sh` passes
+- [x] `cargo nextest run init_creates_file` passes (both byte assertions now compare against `include_str!`)
+- [x] `./scripts/test.sh` passes
 
 #### Manual
 - [ ] `cargo run -- init` with a fresh `XDG_CONFIG_HOME`, then `cat` the emitted file: it is the full commented template, not the 42-byte default

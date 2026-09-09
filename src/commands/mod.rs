@@ -164,8 +164,6 @@ fn init_command(path: &std::path::Path) -> Result<String, Error> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
-    let config = crate::config::Config::default();
-    let toml_str = toml::to_string(&config)?;
     let mut file = std::fs::OpenOptions::new()
         .write(true)
         .create_new(true)
@@ -180,7 +178,7 @@ fn init_command(path: &std::path::Path) -> Result<String, Error> {
                 Error::from(e)
             }
         })?;
-    file.write_all(toml_str.as_bytes())?;
+    file.write_all(include_str!("../../templates/default.toml").as_bytes())?;
     file.flush()?;
     file.sync_all()?;
     Ok(crate::format::green_string(&format!(
