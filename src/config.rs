@@ -13,6 +13,9 @@ pub struct Step {
     pub trigger_artifact: String,
     /// Name of the model (a key into `Config::models`) to use at this step.
     pub model: String,
+    /// Optional name of a `[[scripts]]` entry this step references.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub script: Option<String>,
 }
 
 /// A named model definition, referenced by `Step::model`.
@@ -37,6 +40,17 @@ pub struct Prompt {
     pub content: String,
 }
 
+/// A single named script, referenced by `Step::script` and returned by the
+/// `script` subcommand.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct Script {
+    /// Lookup key referenced by `Step::script`.
+    pub name: String,
+    /// Raw script text (a TOML multi-line string).
+    pub content: String,
+}
+
 /// Application configuration, serialized as TOML in `orksorksorks.toml`.
 ///
 /// The `version` field tracks the config format version so future
@@ -58,6 +72,10 @@ pub struct Config {
     /// Named prompts keyed by step name, returned by the `prompt` subcommand.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub prompts: Vec<Prompt>,
+    /// Named scripts referenced by `Step::script`, returned by the `script`
+    /// subcommand.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub scripts: Vec<Script>,
 }
 
 /// Serde default path for `Config::show_frontmatter`: frontmatter is
@@ -74,6 +92,7 @@ impl Default for Config {
             steps: Vec::new(),
             models: Vec::new(),
             prompts: Vec::new(),
+            scripts: Vec::new(),
         }
     }
 }
@@ -264,15 +283,18 @@ mod tests {
                     name: "one".to_string(),
                     trigger_artifact: "a.txt".to_string(),
                     model: "small".to_string(),
+                    script: None,
                 },
                 Step {
                     name: "two".to_string(),
                     trigger_artifact: "b.txt".to_string(),
                     model: "high".to_string(),
+                    script: None,
                 },
             ],
             models: vec![],
             prompts: vec![],
+            scripts: vec![],
         };
         let serialized = toml::to_string(&config).unwrap();
         let deserialized: Config = toml::from_str(&serialized).unwrap();
@@ -286,6 +308,7 @@ mod tests {
         assert!(config.steps.is_empty());
         assert!(config.models.is_empty());
         assert!(config.prompts.is_empty());
+        assert!(config.scripts.is_empty());
     }
 
     #[test]
@@ -328,10 +351,70 @@ mod tests {
                 name: "questions".to_string(),
                 content: "# Question — Decompose the Task\n\nSome body.\n".to_string(),
             }],
+            scripts: vec![],
         };
         let serialized = toml::to_string(&config).unwrap();
         let deserialized: Config = toml::from_str(&serialized).unwrap();
         assert_eq!(config, deserialized);
+    }
+
+    #[test]
+    fn scripts_round_trip() {
+        let config = Config {
+            version: "0.1.0".to_string(),
+            show_frontmatter: true,
+            steps: vec![],
+            models: vec![],
+            prompts: vec![],
+            scripts: vec![Script {
+                name: "run-one".to_string(),
+                content: "#!/usr/bin/env bash\n\necho hello\n".to_string(),
+            }],
+        };
+        let serialized = toml::to_string(&config).unwrap();
+        let deserialized: Config = toml::from_str(&serialized).unwrap();
+        assert_eq!(config, deserialized);
+    }
+
+    #[test]
+    fn step_script_deserializes_to_none() {
+        let config: Config = toml::from_str(concat!(
+            "version = \"0.1.0\"\n",
+            "[[steps]]\n",
+            "name = \"one\"\n",
+            "trigger_artifact = \"a.txt\"\n",
+            "model = \"small\"\n",
+        ))
+        .unwrap();
+        assert_eq!(config.steps[0].script, None);
+    }
+
+    #[test]
+    fn step_script_deserializes_to_some() {
+        let config: Config = toml::from_str(concat!(
+            "version = \"0.1.0\"\n",
+            "[[steps]]\n",
+            "name = \"one\"\n",
+            "trigger_artifact = \"a.txt\"\n",
+            "model = \"small\"\n",
+            "script = \"run-one\"\n",
+        ))
+        .unwrap();
+        assert_eq!(config.steps[0].script.as_deref(), Some("run-one"));
+    }
+
+    #[test]
+    fn step_script_empty_string_deserializes_to_some_empty() {
+        let config: Config = toml::from_str(concat!(
+            "version = \"0.1.0\"\n",
+            "[[steps]]\n",
+            "name = \"one\"\n",
+            "trigger_artifact = \"a.txt\"\n",
+            "model = \"small\"\n",
+            "script = \"\"\n",
+        ))
+        .unwrap();
+        assert_eq!(config.steps[0].script, Some(String::new()));
     }
 
     #[test]
@@ -372,6 +455,7 @@ mod tests {
                 thinking: "high".to_string(),
             }],
             prompts: vec![],
+            scripts: vec![],
         };
         let serialized = toml::to_string(&config).unwrap();
         let deserialized: Config = toml::from_str(&serialized).unwrap();
@@ -386,6 +470,7 @@ mod tests {
             steps: vec![],
             models: vec![],
             prompts: vec![],
+            scripts: vec![],
         };
         let serialized = toml::to_string(&config).unwrap();
         assert!(

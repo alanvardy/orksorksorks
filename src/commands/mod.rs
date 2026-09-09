@@ -508,15 +508,18 @@ mod tests {
                     name: "one".to_string(),
                     trigger_artifact: "first.txt".to_string(),
                     model: "small".to_string(),
+                    script: None,
                 },
                 Step {
                     name: "two".to_string(),
                     trigger_artifact: "second.txt".to_string(),
                     model: "high".to_string(),
+                    script: None,
                 },
             ],
             models: vec![],
             prompts: vec![],
+            scripts: vec![],
         };
         let artifact_dir = format!("{}/", dir.path().display());
         assert_eq!(determine_step(&config, &artifact_dir).unwrap().name, "one");
@@ -535,15 +538,18 @@ mod tests {
                     name: "one".to_string(),
                     trigger_artifact: "first.txt".to_string(),
                     model: "small".to_string(),
+                    script: None,
                 },
                 Step {
                     name: "two".to_string(),
                     trigger_artifact: "second.txt".to_string(),
                     model: "high".to_string(),
+                    script: None,
                 },
             ],
             models: vec![],
             prompts: vec![],
+            scripts: vec![],
         };
         let artifact_dir = format!("{}/", dir.path().display());
         assert_eq!(determine_step(&config, &artifact_dir).unwrap().name, "two");
@@ -560,15 +566,18 @@ mod tests {
                     name: "one".to_string(),
                     trigger_artifact: "first.txt".to_string(),
                     model: "small".to_string(),
+                    script: None,
                 },
                 Step {
                     name: "default".to_string(),
                     trigger_artifact: String::new(),
                     model: "small".to_string(),
+                    script: None,
                 },
             ],
             models: vec![],
             prompts: vec![],
+            scripts: vec![],
         };
         let artifact_dir = format!("{}/", dir.path().display());
         assert_eq!(
@@ -589,15 +598,18 @@ mod tests {
                     name: "one".to_string(),
                     trigger_artifact: "first.txt".to_string(),
                     model: "small".to_string(),
+                    script: None,
                 },
                 Step {
                     name: "default".to_string(),
                     trigger_artifact: String::new(),
                     model: "small".to_string(),
+                    script: None,
                 },
             ],
             models: vec![],
             prompts: vec![],
+            scripts: vec![],
         };
         let artifact_dir = format!("{}/", dir.path().display());
         assert_eq!(determine_step(&config, &artifact_dir).unwrap().name, "one");
@@ -617,15 +629,18 @@ mod tests {
                     name: "default".to_string(),
                     trigger_artifact: String::new(),
                     model: "small".to_string(),
+                    script: None,
                 },
                 Step {
                     name: "two".to_string(),
                     trigger_artifact: "second.txt".to_string(),
                     model: "high".to_string(),
+                    script: None,
                 },
             ],
             models: vec![],
             prompts: vec![],
+            scripts: vec![],
         };
         let artifact_dir = format!("{}/", dir.path().display());
         assert_eq!(determine_step(&config, &artifact_dir).unwrap().name, "two");
@@ -642,15 +657,18 @@ mod tests {
                     name: "one".to_string(),
                     trigger_artifact: String::new(),
                     model: "small".to_string(),
+                    script: None,
                 },
                 Step {
                     name: "two".to_string(),
                     trigger_artifact: String::new(),
                     model: "high".to_string(),
+                    script: None,
                 },
             ],
             models: vec![],
             prompts: vec![],
+            scripts: vec![],
         };
         let artifact_dir = format!("{}/", dir.path().display());
         assert_eq!(determine_step(&config, &artifact_dir).unwrap().name, "two");
@@ -732,9 +750,11 @@ mod tests {
                 name: "one".to_string(),
                 trigger_artifact: "first.txt".to_string(),
                 model: "small".to_string(),
+                script: None,
             }],
             models: vec![],
             prompts: vec![],
+            scripts: vec![],
         };
         let artifact_dir = format!("{}/", dir.path().display());
         let err = determine_step(&config, &artifact_dir).unwrap_err();
@@ -758,6 +778,7 @@ mod tests {
                 thinking: "high".to_string(),
             }],
             prompts: vec![],
+            scripts: vec![],
         };
         assert_eq!(
             resolve_model(&config, "small").unwrap().model,
@@ -778,6 +799,7 @@ mod tests {
                 thinking: "high".to_string(),
             }],
             prompts: vec![],
+            scripts: vec![],
         };
         let err = resolve_model(&config, "large").unwrap_err();
         assert_eq!(err.source, "model");
@@ -793,9 +815,11 @@ mod tests {
                 name: "one".to_string(),
                 trigger_artifact: "first.txt".to_string(),
                 model: "small".to_string(),
+                script: None,
             }],
             models: vec![],
             prompts: vec![],
+            scripts: vec![],
         };
         let step = resolve_step(&config, "one").unwrap();
         assert_eq!(step.name, "one");
@@ -812,9 +836,11 @@ mod tests {
                 name: "one".to_string(),
                 trigger_artifact: String::new(),
                 model: "small".to_string(),
+                script: None,
             }],
             models: vec![],
             prompts: vec![],
+            scripts: vec![],
         };
         let err = resolve_step(&config, "nope").unwrap_err();
         assert_eq!(err.source, "step");
@@ -835,15 +861,18 @@ mod tests {
                     name: "dup".to_string(),
                     trigger_artifact: String::new(),
                     model: "small".to_string(),
+                    script: None,
                 },
                 Step {
                     name: "dup".to_string(),
                     trigger_artifact: String::new(),
                     model: "high".to_string(),
+                    script: None,
                 },
             ],
             models: vec![],
             prompts: vec![],
+            scripts: vec![],
         };
         let step = resolve_step(&config, "dup").unwrap();
         assert_eq!(step.model, "small");
@@ -1172,6 +1201,7 @@ mod tests {
                 name: "questions".to_string(),
                 content: "# Question — Decompose the Task\n".to_string(),
             }],
+            scripts: vec![],
         };
         assert_eq!(
             resolve_prompt(&config, "questions").unwrap(),
@@ -1190,6 +1220,7 @@ mod tests {
                 name: "questions".to_string(),
                 content: String::new(),
             }],
+            scripts: vec![],
         };
         let err = resolve_prompt(&config, "research").unwrap_err();
         assert_eq!(err.source, "prompt");
