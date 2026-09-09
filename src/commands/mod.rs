@@ -318,6 +318,17 @@ fn resolve_prompt(config: &Config, name: &str) -> Result<String, Error> {
     Err(Error::new("prompt", &format!("no prompt named {name:?}")))
 }
 
+/// Look up the named script (a `config.scripts` key referenced by a step's
+/// `script` field) and return its raw content.
+fn resolve_script(config: &Config, name: &str) -> Result<String, Error> {
+    for s in config.scripts.iter() {
+        if s.name == name {
+            return Ok(s.content.clone());
+        }
+    }
+    Err(Error::new("script", &format!("no script named {name:?}")))
+}
+
 /// Handle the `prompt` subcommand: read the config and return the prompt
 /// content for the current step, or for the explicitly named step when
 /// `--step <NAME>` is provided as an override. Output is prefixed with a
@@ -1225,5 +1236,61 @@ mod tests {
         let err = resolve_prompt(&config, "research").unwrap_err();
         assert_eq!(err.source, "prompt");
         assert!(err.message.contains("no prompt named"), "{}", err.message);
+    }
+
+    #[test]
+    fn resolve_script_hit_returns_content() {
+        let config = Config {
+            version: "0.1.0".to_string(),
+            show_frontmatter: true,
+            steps: vec![],
+            models: vec![],
+            prompts: vec![],
+            scripts: vec![crate::config::Script {
+                name: "run-one".to_string(),
+                content: "#!/bin/bash\n".to_string(),
+            }],
+        };
+        assert_eq!(resolve_script(&config, "run-one").unwrap(), "#!/bin/bash\n",);
+    }
+
+    #[test]
+    fn resolve_script_miss_returns_script_tag() {
+        let config = Config {
+            version: "0.1.0".to_string(),
+            show_frontmatter: true,
+            steps: vec![],
+            models: vec![],
+            prompts: vec![],
+            scripts: vec![crate::config::Script {
+                name: "run-one".to_string(),
+                content: String::new(),
+            }],
+        };
+        let err = resolve_script(&config, "nope").unwrap_err();
+        assert_eq!(err.source, "script");
+        assert!(err.message.contains("no script named"), "{}", err.message);
+    }
+
+    #[test]
+    fn resolve_script_first_match_wins() {
+        let config = Config {
+            version: "0.1.0".to_string(),
+            show_frontmatter: true,
+            steps: vec![],
+            models: vec![],
+            prompts: vec![],
+            scripts: vec![
+                crate::config::Script {
+                    name: "dup".to_string(),
+                    content: "first\n".to_string(),
+                },
+                crate::config::Script {
+                    name: "dup".to_string(),
+                    content: "second\n".to_string(),
+                },
+            ],
+        };
+        assert_eq!(resolve_script(&config, "dup").unwrap(), "first\n",);
     }
 }
