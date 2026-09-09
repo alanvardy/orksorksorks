@@ -109,6 +109,34 @@ fn init_with_config_flag_writes_to_given_path() {
 }
 
 #[test]
+fn init_refuses_to_overwrite_existing_file() {
+    let temp = tempfile::tempdir().unwrap();
+    let config_dir = temp.path().join("config");
+    fs::create_dir(&config_dir).unwrap();
+    let config_path = config_dir.join("orksorksorks.toml");
+    let existing = "keep these bytes\n";
+    fs::write(&config_path, existing).unwrap();
+
+    let mut cmd = Command::cargo_bin("orksorksorks").unwrap();
+    cmd.env("XDG_CONFIG_HOME", &config_dir);
+
+    let output = cmd.args(["init", "-j"]).output().unwrap();
+    assert!(!output.status.success());
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains(r#""source":"config-exists""#),
+        "stdout: {stdout}"
+    );
+
+    // The pre-existing content is byte-unchanged.
+    assert_eq!(fs::read_to_string(&config_path).unwrap(), existing);
+
+    // Symlink note: `create_new` follows the link, so `init` against
+    // ~/.config/orksorksorks.toml (→ dotfiles) also refuses — desired.
+}
+
+#[test]
 fn init_without_home_fails_with_config_dir_tag() {
     let mut cmd = Command::cargo_bin("orksorksorks").unwrap();
     cmd.env_remove("HOME");
