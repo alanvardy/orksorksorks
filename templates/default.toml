@@ -1,0 +1,59 @@
+# Default configuration for orksorksorks.
+#
+# The two lines below are the only live settings; everything else documents
+# the available sections with commented examples. The authoritative schema
+# lives in src/config.rs — see that file for field-level details and
+# validation rules.
+#
+# Sections are documented as they appear in a typical config:
+# steps → models → scripts → prompts.
+
+version = "0.1.0"
+show_frontmatter = true
+
+# ------------------------------------------------------------
+# Steps
+#
+# Checked in order: the current step is the last whose trigger_artifact
+# file exists in the artifact directory. `name` must match a [[prompts]]
+# entry and `model` must match a [[models]] entry; `script` is optional.
+# ------------------------------------------------------------
+# [[steps]]
+# name = "example"
+# trigger_artifact = "example.md"
+# model = "small"
+# script = "my_script"
+
+# ------------------------------------------------------------
+# Models
+#
+# Named model definitions referenced by a step's `model` key.
+# ------------------------------------------------------------
+# [[models]]
+# name = "small"
+# model = "openrouter/example/model"
+# thinking = "high"
+
+# ------------------------------------------------------------
+# Scripts
+#
+# Named scripts referenced by a step's `script` key and returned by the
+# `script` subcommand.
+# ------------------------------------------------------------
+# [[scripts]]
+# name = "my_script"
+# content = """
+# echo "hello"
+# """
+
+# ------------------------------------------------------------
+# Prompts
+#
+# Named prompt text keyed by step name and returned by the `prompt`
+# subcommand.
+# ------------------------------------------------------------
+# [[prompts]]
+# name = "example"
+# content = """
+# Your prompt body goes here.
+# """

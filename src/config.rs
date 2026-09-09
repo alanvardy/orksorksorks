@@ -266,6 +266,13 @@ mod tests {
     }
 
     #[test]
+    fn template_deserializes_to_default() {
+        let template = include_str!("../templates/default.toml");
+        let parsed: Config = toml::from_str(template).unwrap();
+        assert_eq!(parsed, Config::default());
+    }
+
+    #[test]
     fn config_round_trip_serialize_deserialize() {
         let config = Config::default();
         let serialized = toml::to_string(&config).unwrap();
