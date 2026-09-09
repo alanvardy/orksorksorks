@@ -211,8 +211,8 @@ fn init_refuses_to_overwrite_existing_file() {
 ### Verification
 
 #### Automated
-- [ ] `cargo nextest run init_creates_file` passes (new clobber test exits 1 with `config-exists`; all 6 existing tests still green — they all target fresh destinations)
-- [ ] `./scripts/test.sh` passes
+- [x] `cargo nextest run init_creates_file` passes (new clobber test exits 1 with `config-exists`; all 6 existing tests still green — they all target fresh destinations)
+- [x] `./scripts/test.sh` passes
 
 #### Manual
 - [ ] `cargo run -- init` against a path that already exists prints `Error from config-exists:` with an "already exists; not overwriting" message and exits nonzero; the file is untouched

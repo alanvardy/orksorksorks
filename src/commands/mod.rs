@@ -166,7 +166,20 @@ fn init_command(path: &std::path::Path) -> Result<String, Error> {
     }
     let config = crate::config::Config::default();
     let toml_str = toml::to_string(&config)?;
-    let mut file = std::fs::File::create(path)?;
+    let mut file = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(path)
+        .map_err(|e| {
+            if e.kind() == std::io::ErrorKind::AlreadyExists {
+                Error::new(
+                    "config-exists",
+                    &format!("{} already exists; not overwriting", path.display()),
+                )
+            } else {
+                Error::from(e)
+            }
+        })?;
     file.write_all(toml_str.as_bytes())?;
     file.flush()?;
     file.sync_all()?;
