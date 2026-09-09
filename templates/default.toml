@@ -2,8 +2,8 @@
 #
 # The two lines below are the only live settings; everything else documents
 # the available sections with commented examples. The authoritative schema
-# lives in src/config.rs — see that file for field-level details and
-# validation rules.
+# lives in the crate source's src/config.rs — see the project repository
+# for field-level details and validation rules.
 #
 # Sections are documented as they appear in a typical config:
 # steps → models → scripts → prompts.
@@ -15,8 +15,11 @@ show_frontmatter = true
 # Steps
 #
 # Checked in order: the current step is the last whose trigger_artifact
-# file exists in the artifact directory. `name` must match a [[prompts]]
-# entry and `model` must match a [[models]] entry; `script` is optional.
+# file exists in the artifact directory. A step with an empty
+# `trigger_artifact` is a default fallback — returned only when no other
+# artifact exists; at most one default is allowed. `name` must match a
+# [[prompts]] entry and `model` must match a [[models]] entry; `script`
+# is optional.
 # ------------------------------------------------------------
 # [[steps]]
 # name = "example"
