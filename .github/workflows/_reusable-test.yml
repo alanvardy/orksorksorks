@@ -26,7 +26,7 @@ jobs:
         run: cargo llvm-cov nextest --profile ci --all-features --lcov --output-path lcov.info
       - name: upload coverage
         if: inputs.upload-coverage
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v7
         with:
           files: lcov.info
       - name: upload test results
