@@ -254,8 +254,8 @@ fn script_command(
 
 ### Verification
 #### Automated
-- [ ] `cargo check` passes
-- [ ] `cargo nextest run commands::tests::` passes — includes the new routing/dispatch tests plus the 43 pre-existing ones
+- [x] `cargo check` passes
+- [x] `cargo nextest run commands::tests::` passes — includes the new routing/dispatch tests plus the 43 pre-existing ones
 
 #### Manual
 - [ ] `cargo run -- script --help` shows the `STEP_NAME` positional + `--config`, distinct from `prompt --help`

@@ -100,6 +100,19 @@ pub enum Commands {
         #[arg(long, value_name = "STEP")]
         step: Option<String>,
     },
+
+    /// Print the raw script for the current step (from `config.scripts`)
+    Script {
+        /// Step name override; defaults to the current step derived from
+        /// present trigger artifacts
+        #[arg(value_name = "STEP_NAME")]
+        step_name: Option<String>,
+
+        /// Path to the TOML config file; defaults to the config directory
+        /// (the same resolution as `init`)
+        #[arg(long, value_name = "CONFIG")]
+        config: Option<PathBuf>,
+    },
 }
 
 /// Route a parsed CLI to its handler, injecting `env` for config-dir resolution.
@@ -130,6 +143,11 @@ fn select_command_with_env(cli: &Cli, env: &crate::config_dir::ConfigEnv) -> Res
             let (path, source) =
                 crate::config_dir::config_file_path_with_env(config.as_deref(), env)?;
             prompt_command(&path, source, step.clone())
+        }
+        Commands::Script { step_name, config } => {
+            let (path, source) =
+                crate::config_dir::config_file_path_with_env(config.as_deref(), env)?;
+            script_command(&path, source, step_name.clone())
         }
     }
 }
@@ -373,6 +391,36 @@ fn prompt_command(
         ));
     }
     Ok(content)
+}
+
+/// Handle the `script` subcommand: read the config and return the raw
+/// `[[scripts]]` content referenced by the current step's `script` field,
+/// or by the explicitly named step when `step_name` overrides detection.
+/// No frontmatter is emitted (the content is meant to be run/piped).
+fn script_command(
+    path: &std::path::Path,
+    source: crate::config_dir::ConfigPathSource,
+    step_name: Option<String>,
+) -> Result<String, Error> {
+    let cfg = crate::config::read_config(path, source)?;
+    let step = if let Some(name) = step_name {
+        // Explicit name: resolve by name (no git/artifact work), so unknown
+        // script-name / no-script errors surface as `"script"`, never `"git"`.
+        resolve_step(&cfg, &name)?
+    } else {
+        // No explicit step: derive the current step from trigger artifacts,
+        // exactly like `step`/`model`/`thinking`/`prompt`.
+        let cwd = std::env::current_dir()?;
+        let artifact_dir = artifact_dir_path(&cwd, &git::current_branch()?);
+        determine_step(&cfg, &artifact_dir)?
+    };
+    let script_name = step.script.ok_or_else(|| {
+        Error::new(
+            "script",
+            &format!("step {:?} has no script configured", step.name),
+        )
+    })?;
+    resolve_script(&cfg, &script_name)
 }
 
 #[cfg(test)]
@@ -1085,6 +1133,58 @@ mod tests {
     }
 
     #[test]
+    fn cli_try_parse_accepts_script() {
+        use clap::Parser;
+        let result = Cli::try_parse_from(["orksorksorks", "script", "run-one"]);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn cli_try_parse_script_without_step_name_is_none() {
+        use clap::Parser;
+        let cli = Cli::try_parse_from(["orksorksorks", "script"]).unwrap();
+        match cli.command {
+            Commands::Script { step_name, config } => {
+                assert_eq!(step_name, None);
+                assert_eq!(config, None);
+            }
+            _ => panic!("expected Commands::Script"),
+        }
+    }
+
+    #[test]
+    fn cli_try_parse_script_reads_step_name() {
+        use clap::Parser;
+        let cli = Cli::try_parse_from(["orksorksorks", "script", "run-one"]).unwrap();
+        match cli.command {
+            Commands::Script { step_name, .. } => {
+                assert_eq!(step_name, Some("run-one".to_string()))
+            }
+            _ => panic!("expected Commands::Script"),
+        }
+    }
+
+    #[test]
+    fn cli_try_parse_script_with_custom_config() {
+        use clap::Parser;
+        let cli = Cli::try_parse_from([
+            "orksorksorks",
+            "script",
+            "run-one",
+            "--config",
+            "custom.toml",
+        ])
+        .unwrap();
+        match cli.command {
+            Commands::Script { step_name, config } => {
+                assert_eq!(step_name, Some("run-one".to_string()));
+                assert_eq!(config, Some(std::path::PathBuf::from("custom.toml")),);
+            }
+            _ => panic!("expected Commands::Script"),
+        }
+    }
+
+    #[test]
     fn select_command_routes_prompt() {
         // No explicit step — the primary auto-derive mode: dispatch still
         // happens before any git/artifact logic, so the missing config
@@ -1100,6 +1200,26 @@ mod tests {
         };
         // prompt_command reads the (missing) config first → "io", proving
         // the arm dispatched to prompt_command.
+        let err = select_command(&cli).unwrap_err();
+        assert_eq!(err.source, "io");
+    }
+
+    #[test]
+    fn select_command_routes_script() {
+        // No explicit step — the primary auto-derive mode: dispatch still
+        // happens before any git/artifact logic, so the missing config
+        // error proves the arm reached script_command.
+        let cli = Cli {
+            json: false,
+            command: Commands::Script {
+                step_name: None,
+                config: Some(std::path::PathBuf::from(
+                    "definitely-missing-config-file.toml",
+                )),
+            },
+        };
+        // script_command reads the (missing) config first → "io", proving
+        // the arm dispatched to script_command.
         let err = select_command(&cli).unwrap_err();
         assert_eq!(err.source, "io");
     }
@@ -1196,6 +1316,38 @@ mod tests {
         assert_eq!(err.source, "config:missing-prompt");
         assert!(
             err.message.contains("has no matching prompt"),
+            "{}",
+            err.message
+        );
+    }
+
+    #[test]
+    fn script_command_step_without_script_errors() {
+        // Step `one` exists (validated config with matching prompt/model) but
+        // has no `script` key: `read_config` succeeds, then the explicit-name
+        // path resolves the step and fails on the missing script reference
+        // with the `"script"` tag — before resolve_script ever runs. The
+        // explicit-name path avoids git, so no repo is needed.
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("orksorksorks.toml"),
+            concat!(
+                "version = \"0.1.0\"\n",
+                "[[steps]]\nname = \"one\"\ntrigger_artifact = \"first.txt\"\nmodel = \"small\"\n",
+                "[[models]]\nname = \"small\"\nmodel = \"openrouter/deepseek/flash\"\nthinking = \"high\"\n",
+                "[[prompts]]\nname = \"one\"\ncontent = \"one\"\n",
+            ),
+        )
+        .unwrap();
+        let err = script_command(
+            &dir.path().join("orksorksorks.toml"),
+            crate::config_dir::ConfigPathSource::ExplicitFlag,
+            Some("one".to_string()),
+        )
+        .unwrap_err();
+        assert_eq!(err.source, "script");
+        assert!(
+            err.message.contains("has no script configured"),
             "{}",
             err.message
         );
