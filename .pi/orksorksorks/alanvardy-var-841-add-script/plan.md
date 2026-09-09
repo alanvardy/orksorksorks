@@ -159,8 +159,8 @@ fn resolve_step(config: &Config, name: &str) -> Result<Step, Error> {
 
 ### Verification
 #### Automated
-- [ ] `cargo check` passes
-- [ ] `cargo nextest run commands::tests::resolve_` passes (matches `resolve_script_*` + `resolve_step_*` + the pre-existing `resolve_model_*` / `resolve_prompt_*`)
+- [x] `cargo check` passes
+- [x] `cargo nextest run commands::tests::resolve_` passes (matches `resolve_script_*` + `resolve_step_*` + the pre-existing `resolve_model_*` / `resolve_prompt_*`)
 
 #### Manual
 - [ ] Confirm no `resolve_*` function exists that mutates `Config` — all return owned clones/content and take `&Config`
