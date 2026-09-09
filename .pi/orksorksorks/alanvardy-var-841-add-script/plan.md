@@ -325,7 +325,7 @@ fn write_config(dir: &std::path::Path) {
 
 ### Verification
 #### Automated
-- [ ] `bash scripts/test.sh` — the only merge gate (see conventions): `cargo fmt --all` clean, `cargo check`, `cargo clippy --tests -- -D warnings`, `cargo nextest run --no-tests pass`, forbidden-string `rg` (no `TODO:`/`dbg!`/`FIXTURE:` etc. in `tests/script.rs`)
+- [x] `bash scripts/test.sh` — the only merge gate (see conventions): `cargo fmt --all` clean, `cargo check`, `cargo clippy --tests -- -D warnings`, `cargo nextest run --no-tests pass`, forbidden-string `rg` (no `TODO:`/`dbg!`/`FIXTURE:` etc. in `tests/script.rs`)
 
 #### Manual
 - [ ] `cargo build && ./target/debug/orksorksorks script --help` renders correctly
