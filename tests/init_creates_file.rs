@@ -21,9 +21,8 @@ fn init_creates_orksorksorks_toml_with_default_content() {
 
     let content = fs::read_to_string(&config_path).unwrap();
     // The crate is binary-only (no lib target), so integration tests can't
-    // import `Config`; assert the exact serialization of the default value.
-    let expected = "version = \"0.1.0\"\nshow_frontmatter = true\n";
-    assert_eq!(content, expected);
+    // import `Config`; assert the exact bytes of the shared template.
+    assert_eq!(content, include_str!("../templates/default.toml"));
 }
 
 #[test]
@@ -105,7 +104,7 @@ fn init_with_config_flag_writes_to_given_path() {
     assert!(target.exists(), "override target not created");
     assert!(!hostile.exists(), "default dir should not be created");
     let content = fs::read_to_string(&target).unwrap();
-    assert_eq!(content, "version = \"0.1.0\"\nshow_frontmatter = true\n");
+    assert_eq!(content, include_str!("../templates/default.toml"));
 }
 
 #[test]
