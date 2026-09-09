@@ -39,7 +39,7 @@ pub struct Cli {
 /// Top-level subcommands.
 #[derive(Subcommand, Debug, Clone)]
 pub enum Commands {
-    /// (i) Create a new orksorksorks.toml file
+    /// (i) Create a new orksorksorks.toml file; refuses if it already exists
     Init {
         /// Write to this path instead of the default config directory
         #[arg(short = 'c', long, value_parser = clap::value_parser!(PathBuf))]

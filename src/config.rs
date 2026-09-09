@@ -273,6 +273,36 @@ mod tests {
     }
 
     #[test]
+    fn template_commented_examples_validate() {
+        // The exact TOML the commented examples in templates/default.toml
+        // would produce when uncommented. Guards the documentation against
+        // schema drift: a renamed field fails deserialization (via
+        // deny_unknown_fields), and a broken cross-reference fails
+        // validate().
+        let uncommented = concat!(
+            "version = \"0.1.0\"\n",
+            "show_frontmatter = true\n",
+            "[[steps]]\n",
+            "name = \"example\"\n",
+            "trigger_artifact = \"example.md\"\n",
+            "model = \"small\"\n",
+            "script = \"my_script\"\n",
+            "[[models]]\n",
+            "name = \"small\"\n",
+            "model = \"openrouter/example/model\"\n",
+            "thinking = \"high\"\n",
+            "[[scripts]]\n",
+            "name = \"my_script\"\n",
+            "content = \"\"\"\necho \"hello\"\n\"\"\"\n",
+            "[[prompts]]\n",
+            "name = \"example\"\n",
+            "content = \"\"\"\nYour prompt body goes here.\n\"\"\"\n",
+        );
+        let config: Config = toml::from_str(uncommented).unwrap();
+        config.validate().unwrap();
+    }
+
+    #[test]
     fn config_round_trip_serialize_deserialize() {
         let config = Config::default();
         let serialized = toml::to_string(&config).unwrap();

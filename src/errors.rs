@@ -12,7 +12,7 @@ use std::fmt;
 /// `"toml::de"` (malformed TOML, including unknown keys rejected by
 /// `deny_unknown_fields`). The post-parse semantic layer covers validation
 /// (`"config:*"`, e.g. `"config:missing-prompt"`) and per-command lookups
-/// (`"config-dir"`, `"config-exists"`, `"step"`, `"model"`, `"prompt"`, `"git"`).
+/// (`"config-dir"`, `"config-exists"`, `"step"`, `"model"`, `"prompt"`, `"script"`, `"git"`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Error {
     pub message: String,

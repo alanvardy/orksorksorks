@@ -131,8 +131,32 @@ fn init_refuses_to_overwrite_existing_file() {
     // The pre-existing content is byte-unchanged.
     assert_eq!(fs::read_to_string(&config_path).unwrap(), existing);
 
-    // Symlink note: `create_new` follows the link, so `init` against
-    // ~/.config/orksorksorks.toml (→ dotfiles) also refuses — desired.
+    // `create_new` (O_EXCL) fails on any existing path — file or symlink —
+    // without following, so `init` against a symlinked config also refuses.
+}
+
+#[test]
+fn init_init_config_flag_refuses_existing_file() {
+    let temp = tempfile::tempdir().unwrap();
+    let target = temp.path().join("custom.toml");
+    let existing = "custom bytes\n";
+    fs::write(&target, existing).unwrap();
+
+    let mut cmd = Command::cargo_bin("orksorksorks").unwrap();
+    cmd.env("XDG_CONFIG_HOME", temp.path().join("nonexistent"));
+
+    let output = cmd
+        .args(["init", "--config", target.to_str().unwrap(), "-j"])
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains(r#""source":"config-exists""#),
+        "stdout: {stdout}"
+    );
+    assert_eq!(fs::read_to_string(&target).unwrap(), existing);
 }
 
 #[test]
