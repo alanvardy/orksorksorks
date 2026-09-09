@@ -9,3 +9,12 @@ jobs:
     uses: ./.github/workflows/_reusable-lint.yml
   test:
     uses: ./.github/workflows/_reusable-test.yml
+  ci-gate:
+    name: CI Gate
+    if: always()
+    needs: [lint, test]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail unless lint and test both succeeded
+        run: |
+          echo '${{ toJSON(needs) }}' | jq -e 'all(.[]; .result == "success")'
