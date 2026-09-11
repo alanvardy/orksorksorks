@@ -161,10 +161,11 @@ fn prompt_with_explicit_step_name_flag_overrides_step() {
     );
     assert!(
         stdout.contains(
-            "## Important variables\nUse these everywhere you see $<variable>\nstep = one\n"
+            "## Important variables\nThese are literal text values, not shell or\nenvironment variables."
         ),
         "stdout: {stdout}",
     );
+    assert!(stdout.contains("step = one\n"), "stdout: {stdout}");
 }
 
 #[test]
@@ -298,7 +299,9 @@ fn prompt_frontmatter_shown_by_default() {
         "stdout: {stdout}"
     );
     assert!(
-        stdout.starts_with("## Important variables\nUse these everywhere you see $<variable>\n"),
+        stdout.starts_with(
+            "## Important variables\nThese are literal text values, not shell or\nenvironment variables."
+        ),
         "stdout: {stdout}",
     );
     assert!(stdout.contains("step = one\n"), "stdout: {stdout}");
@@ -341,7 +344,7 @@ fn prompt_frontmatter_hidden_when_show_frontmatter_false() {
         "stdout: {stdout}"
     );
     assert!(
-        !stdout.contains("Use these everywhere you see"),
+        !stdout.contains("These are literal text values"),
         "stdout: {stdout}"
     );
     assert!(!stdout.contains("step = "), "stdout: {stdout}");

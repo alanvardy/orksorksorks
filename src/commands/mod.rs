@@ -397,7 +397,7 @@ fn prompt_command(
         let branch = git::current_branch()?;
         let artifact_dir = artifact_dir_path(&cwd, &branch);
         return Ok(format!(
-            "## Important variables\nUse these everywhere you see $<variable>\nstep = {}\nbranch = {}\nartifact_directory = {}\n\n{}",
+            "## Important variables\nThese are literal text values, not shell or\nenvironment variables. Wherever a prompt writes $<variable> (or\n($variable)path), substitute the value shown below as plain text; never\nwrite $variable in a shell command.\nstep = {}\nbranch = {}\nartifact_directory = {}\n\n{}",
             name, branch, artifact_dir, content
         ));
     }
