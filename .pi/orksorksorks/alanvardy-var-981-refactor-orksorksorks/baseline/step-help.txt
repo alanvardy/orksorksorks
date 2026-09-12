@@ -1,0 +1,9 @@
+Determine the current step from present trigger artifacts
+
+Usage: orksorksorks step [OPTIONS]
+
+Options:
+      --config <CONFIG>  Path to the TOML config file; defaults to the config directory (the same resolution as `init`)
+  -j, --json             Output results as JSON
+      --step <STEP>      Override the current step (from `config.steps`) by name
+  -h, --help             Print help

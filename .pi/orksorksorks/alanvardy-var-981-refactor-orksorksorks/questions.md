@@ -1,0 +1,17 @@
+# Research Questions
+
+## Context
+
+The crate is a small Rust CLI (`src/main.rs` declares six flat modules: `commands`, `config`, `config_dir`, `errors`, `format`, `git`). `src/commands/mod.rs` is the crate's largest file: it holds the clap parser structs, the subcommand enum, the routing match, every command handler, shared resolution helpers, and a large inline test module. The questions below map the internal structure of that file, the contracts that bind it to the rest of the crate, the conventions used by its sibling modules, the test surface that pins observable behavior, and the error/output flow that connects handlers to stdout.
+
+## Questions
+
+1. **Internal structure of `src/commands/mod.rs`**: Inventory the file top to bottom — the `Cli` struct with all its clap attributes, the `Commands` enum with every variant and its fields, the routing function(s) and every match arm, each command handler (signature, arguments, return type, what it does), each shared helper (signature and call sites), and the test module's shape. Which symbols are `pub` vs private, and what internal dependencies exist between items in the file (which handlers call which helpers)?
+
+2. **Cross-module contracts**: What does `src/main.rs` require from the `commands` module — every type, function, or field it uses and their visibility? What does `src/commands/mod.rs` use from the other five modules (every import and usage)? What exactly does `tests/architecture.rs` (rust_arkitect) pin: the dependency rule, the import allowlist for `commands`, and the command surface (build rules, how it's run)? How would each of these contracts be expressed if code moved between files within the `commands` module?
+
+3. **Module organization conventions**: For each sibling top-level module (`src/config.rs`, `src/config_dir.rs`, `src/errors.rs`, `src/format.rs`, `src/git.rs`), describe its internal organization: declaration order, `pub` items vs private, how it returns/uses `crate::errors::Error`, doc-comment conventions, and how its `#[cfg(test)] mod tests` is arranged. Are there any nested modules, subdirectories, or multi-file module trees anywhere in the repo (src/, tests/, build.rs, or scripts) that establish a submodule pattern? What naming conventions apply to modules, functions, and types?
+
+4. **Test surface pinning CLI behavior**: Inventory every test that pins observable behavior. For each of the 9 files in `tests/` (e.g. `tests/init_creates_file.rs`, `tests/json_output.rs`), say what it exercises, how it invokes the binary, and which exact outputs it asserts (text, JSON envelope fields, ANSI handling, exit codes, error messages). For the inline `mod tests` in `src/commands/mod.rs`, group the unit tests by what behavior they cover (parse routes, handler logic, helper resolution). Describe the `tests/architecture.rs` rules precisely. What behaviors would a reader use to verify an output-preserving change?
+
+5. **Error and output flow**: Trace how a command handler's result becomes terminal output. How does `src/main.rs` route `CommandResult` through the text/JSON/result output paths, and what does each emit? How do handlers produce errors — what does `src/errors.rs` define, how are errors constructed in handlers, and how does an error reach the user (message format, JSON shape, exit behavior)? Where does color/ANSI get applied, and what is the `apply_color` chokepoint's contract?
