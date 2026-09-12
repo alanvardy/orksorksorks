@@ -1,0 +1,11 @@
+Print the raw script for the current step (from `config.scripts`)
+
+Usage: orksorksorks script [OPTIONS] [STEP_NAME]
+
+Arguments:
+  [STEP_NAME]  Step name override; defaults to the current step derived from present trigger artifacts
+
+Options:
+      --config <CONFIG>  Path to the TOML config file; defaults to the config directory (the same resolution as `init`)
+  -j, --json             Output results as JSON
+  -h, --help             Print help

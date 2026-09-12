@@ -1,0 +1,18 @@
+
+Usage: orksorksorks [OPTIONS] <COMMAND>
+
+Commands:
+  init                (i) Create a new orksorksorks.toml file; refuses if it already exists
+  branch              Print the current git branch
+  artifact_directory  Print the artifact directory path (cwd/.pi/orksorksorks/<branch>/)
+  step                Determine the current step from present trigger artifacts
+  model               Print the model for the current step (from `config.models`)
+  thinking            Print the thinking budget for the current step (from `config.models`)
+  prompt              Print the prompt for the current step (from `config.prompts`)
+  script              Print the raw script for the current step (from `config.scripts`)
+  help                Print this message or the help of the given subcommand(s)
+
+Options:
+  -j, --json     Output results as JSON
+  -h, --help     Print help
+  -V, --version  Print version
