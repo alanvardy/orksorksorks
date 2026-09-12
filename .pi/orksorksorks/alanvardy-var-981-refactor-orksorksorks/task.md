@@ -1,0 +1,3 @@
+# Task
+
+Refactor the orksorksorks Rust CLI so that `src/commands/mod.rs` — currently 1,459 of the crate's 2,884 lines, containing the clap parser structs, the subcommand enum, routing, and every command handler plus ~1,000 lines of inline tests — is split into an organized set of submodules. The organization scheme is to be decided through research and design; the change must be behavior-preserving (same CLI surface, same output, same error messages), and must respect the existing rust_arkitect architecture constraints in `tests/architecture.rs`.
