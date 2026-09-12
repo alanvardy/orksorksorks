@@ -1,0 +1,5 @@
+        PASS [   0.008s] (195/197) orksorksorks::bin/orksorksorks git::tests::parse_branch_output_trims_trailing_newline
+        PASS [   0.082s] (196/197) orksorksorks::bin/orksorksorks git::tests::current_branch_in_returns_configured_branch
+        PASS [   0.095s] (197/197) orksorksorks::bin/orksorksorks git::tests::current_branch_in_detached_head_errors
+────────────
+     Summary [   0.752s] 197 tests run: 197 passed, 0 skipped
