@@ -3,6 +3,9 @@ use crate::git;
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
+mod artifact_directory;
+mod branch;
+mod init;
 mod resolve;
 
 const NAME: &str = env!("CARGO_PKG_NAME");
@@ -121,10 +124,10 @@ fn select_command_with_env(cli: &Cli, env: &crate::config_dir::ConfigEnv) -> Res
     match &cli.command {
         Commands::Init { config } => {
             let (path, _) = crate::config_dir::config_file_path_with_env(config.as_deref(), env)?;
-            init_command(&path)
+            init::init_command(&path)
         }
-        Commands::Branch => branch_command(),
-        Commands::ArtifactDirectory => artifact_directory_command(),
+        Commands::Branch => branch::branch_command(),
+        Commands::ArtifactDirectory => artifact_directory::artifact_directory_command(),
         Commands::Step { config, step } => {
             let (path, source) =
                 crate::config_dir::config_file_path_with_env(config.as_deref(), env)?;
@@ -156,48 +159,6 @@ fn select_command_with_env(cli: &Cli, env: &crate::config_dir::ConfigEnv) -> Res
 /// Route a parsed CLI to its handler and return a success message or error.
 pub fn select_command(cli: &Cli) -> Result<String, Error> {
     select_command_with_env(cli, &crate::config_dir::ConfigEnv::from_env())
-}
-
-/// Create a new `orksorksorks.toml` file with default configuration.
-fn init_command(path: &std::path::Path) -> Result<String, Error> {
-    use std::io::Write;
-
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
-    let mut file = std::fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(path)
-        .map_err(|e| {
-            if e.kind() == std::io::ErrorKind::AlreadyExists {
-                Error::new(
-                    "config-exists",
-                    &format!("{} already exists; not overwriting", path.display()),
-                )
-            } else {
-                Error::from(e)
-            }
-        })?;
-    file.write_all(include_str!("../../templates/default.toml").as_bytes())?;
-    file.flush()?;
-    file.sync_all()?;
-    Ok(crate::format::green_string(&format!(
-        "✓ Created {}",
-        path.display()
-    )))
-}
-
-/// Handle the `branch` subcommand: return the current git branch, plain.
-fn branch_command() -> Result<String, Error> {
-    git::current_branch()
-}
-
-/// Handle the `artifact_directory` subcommand: return
-/// `$PWD/.pi/orksorksorks/<branch>/`, plain (no directory creation).
-fn artifact_directory_command() -> Result<String, Error> {
-    let cwd = std::env::current_dir()?;
-    Ok(resolve::artifact_dir_path(&cwd, &git::current_branch()?))
 }
 
 /// Handle the `step` subcommand: read the config and return the current step
