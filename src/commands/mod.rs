@@ -6,7 +6,10 @@ use std::path::PathBuf;
 mod artifact_directory;
 mod branch;
 mod init;
+mod model;
 mod resolve;
+mod step;
+mod thinking;
 
 const NAME: &str = env!("CARGO_PKG_NAME");
 const AUTHOR: &str = env!("CARGO_PKG_AUTHORS");
@@ -131,17 +134,17 @@ fn select_command_with_env(cli: &Cli, env: &crate::config_dir::ConfigEnv) -> Res
         Commands::Step { config, step } => {
             let (path, source) =
                 crate::config_dir::config_file_path_with_env(config.as_deref(), env)?;
-            step_command(&path, source, step.clone())
+            step::step_command(&path, source, step.clone())
         }
         Commands::Model { config, step } => {
             let (path, source) =
                 crate::config_dir::config_file_path_with_env(config.as_deref(), env)?;
-            model_command(&path, source, step.clone())
+            model::model_command(&path, source, step.clone())
         }
         Commands::Thinking { config, step } => {
             let (path, source) =
                 crate::config_dir::config_file_path_with_env(config.as_deref(), env)?;
-            thinking_command(&path, source, step.clone())
+            thinking::thinking_command(&path, source, step.clone())
         }
         Commands::Prompt { step, config } => {
             let (path, source) =
@@ -159,73 +162,6 @@ fn select_command_with_env(cli: &Cli, env: &crate::config_dir::ConfigEnv) -> Res
 /// Route a parsed CLI to its handler and return a success message or error.
 pub fn select_command(cli: &Cli) -> Result<String, Error> {
     select_command_with_env(cli, &crate::config_dir::ConfigEnv::from_env())
-}
-
-/// Handle the `step` subcommand: read the config and return the current step
-/// name. With `--step <NAME>`, the name replaces artifact-based derivation
-/// (no git is consulted); otherwise the step is derived from cwd + git
-/// branch + trigger artifacts.
-///
-/// `path` is the already-resolved config location: either the explicit
-/// `--config` argument or the config-directory default (`config_dir.rs`).
-/// `read_config` runs before git resolution so a missing/unreadable config
-/// deterministically fails with `"io"`.
-fn step_command(
-    path: &std::path::Path,
-    source: crate::config_dir::ConfigPathSource,
-    step: Option<String>,
-) -> Result<String, Error> {
-    let cfg = crate::config::read_config(path, source)?;
-    let step = if let Some(name) = step {
-        resolve::resolve_step(&cfg, &name)?
-    } else {
-        let cwd = std::env::current_dir()?;
-        let artifact_dir = resolve::artifact_dir_path(&cwd, &git::current_branch()?);
-        resolve::determine_step(&cfg, &artifact_dir)?
-    };
-    Ok(step.name)
-}
-
-/// Handle the `model` subcommand: determine the current step (via
-/// `--step <NAME>` when given, else artifact derivation), read the model
-/// *name* it references, and resolve that name against `config.models` to
-/// the concrete model string.
-fn model_command(
-    path: &std::path::Path,
-    source: crate::config_dir::ConfigPathSource,
-    step: Option<String>,
-) -> Result<String, Error> {
-    let cfg = crate::config::read_config(path, source)?;
-    let step = if let Some(name) = step {
-        resolve::resolve_step(&cfg, &name)?
-    } else {
-        let cwd = std::env::current_dir()?;
-        let artifact_dir = resolve::artifact_dir_path(&cwd, &git::current_branch()?);
-        resolve::determine_step(&cfg, &artifact_dir)?
-    };
-    let model = resolve::resolve_model(&cfg, &step.model)?;
-    Ok(model.model)
-}
-
-/// Handle the `thinking` subcommand: determine the current step (via
-/// `--step <NAME>` when given, else artifact derivation), read the model
-/// *name* it references, and resolve that name against `config.models` to
-/// its thinking-budget value.
-fn thinking_command(
-    path: &std::path::Path,
-    source: crate::config_dir::ConfigPathSource,
-    step: Option<String>,
-) -> Result<String, Error> {
-    let cfg = crate::config::read_config(path, source)?;
-    let step = if let Some(name) = step {
-        resolve::resolve_step(&cfg, &name)?
-    } else {
-        let cwd = std::env::current_dir()?;
-        let artifact_dir = resolve::artifact_dir_path(&cwd, &git::current_branch()?);
-        resolve::determine_step(&cfg, &artifact_dir)?
-    };
-    let model = resolve::resolve_model(&cfg, &step.model)?;
-    Ok(model.thinking)
 }
 
 /// Handle the `prompt` subcommand: read the config and return the prompt
@@ -752,52 +688,6 @@ mod tests {
         // the arm dispatched to script_command.
         let err = select_command(&cli).unwrap_err();
         assert_eq!(err.source, "io");
-    }
-
-    #[test]
-    fn step_command_flag_succeeds_in_non_git_dir() {
-        // A tempdir with NO git repo: bare step would fail in git::current_branch,
-        // so success proves `--step` never shells out to git or reads cwd.
-        let dir = tempfile::tempdir().unwrap();
-        std::fs::write(
-            dir.path().join("orksorksorks.toml"),
-            concat!(
-                "version = \"0.1.0\"\n",
-                "[[steps]]\nname = \"one\"\ntrigger_artifact = \"first.txt\"\nmodel = \"small\"\n",
-                "[[models]]\nname = \"small\"\nmodel = \"openrouter/deepseek/flash\"\nthinking = \"high\"\n",
-                "[[prompts]]\nname = \"one\"\ncontent = \"one\"\n",
-            ),
-        )
-        .unwrap();
-        let out = step_command(
-            &dir.path().join("orksorksorks.toml"),
-            crate::config_dir::ConfigPathSource::ExplicitFlag,
-            Some("one".to_string()),
-        )
-        .unwrap();
-        assert_eq!(out, "one");
-    }
-
-    #[test]
-    fn step_command_flag_unknown_name_tags_step() {
-        let dir = tempfile::tempdir().unwrap();
-        std::fs::write(
-            dir.path().join("orksorksorks.toml"),
-            "version = \"0.1.0\"\n",
-        )
-        .unwrap();
-        let err = step_command(
-            &dir.path().join("orksorksorks.toml"),
-            crate::config_dir::ConfigPathSource::ExplicitFlag,
-            Some("nope".to_string()),
-        )
-        .unwrap_err();
-        assert_eq!(err.source, "step");
-        assert!(
-            err.message.contains("no step named \"nope\""),
-            "{}",
-            err.message
-        );
     }
 
     #[test]
