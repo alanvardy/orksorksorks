@@ -86,9 +86,8 @@ vars): see `README.md`; the config filename is always `orksorksorks.toml`.
 ### Artifact directory
 
 Commands operate on `$PWD/.pi/orksorksorks/<branch>/` (`/` → `-`; see the
-`artifact_directory` subcommand). The repo's own `.ignore` (separate from
-`.gitignore`, which only excludes `/target`) hides `.pi/orksorksorks` —
-never commit it.
+`artifact_directory` subcommand). Each phase commits its own artifact — never a
+bulk sweep; `.ignore` hides `.pi/orksorksorks` from ripgrep only.
 
 ## Ticket workflow
 
