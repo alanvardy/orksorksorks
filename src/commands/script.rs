@@ -1,6 +1,5 @@
 use super::resolve;
 use crate::errors::Error;
-use crate::git;
 
 /// Handle the `script` subcommand: read the config and return the raw
 /// `[[scripts]]` content referenced by the current step's `script` field,
@@ -11,18 +10,7 @@ pub(crate) fn script_command(
     source: crate::config_dir::ConfigPathSource,
     step_name: Option<String>,
 ) -> Result<String, Error> {
-    let cfg = crate::config::read_config(path, source)?;
-    let step = if let Some(name) = step_name {
-        // Explicit name: resolve by name (no git/artifact work), so unknown
-        // script-name / no-script errors surface as `"script"`, never `"git"`.
-        resolve::resolve_step(&cfg, &name)?
-    } else {
-        // No explicit step: derive the current step from trigger artifacts,
-        // exactly like `step`/`model`/`thinking`/`prompt`.
-        let cwd = std::env::current_dir()?;
-        let artifact_dir = resolve::artifact_dir_path(&cwd, &git::current_branch()?);
-        resolve::determine_step(&cfg, &artifact_dir)?
-    };
+    let (cfg, step) = resolve::read_config_and_step(path, source, step_name)?;
     let script_name = step.script.ok_or_else(|| {
         Error::new(
             "script",
