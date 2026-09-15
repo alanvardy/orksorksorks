@@ -1,5 +1,6 @@
 use crate::config::{Config, Step};
 use crate::errors::Error;
+use crate::git;
 
 /// Compose the artifact-directory path from a cwd and a branch name.
 ///
@@ -45,6 +46,32 @@ pub(crate) fn determine_step(config: &Config, artifact_dir: &str) -> Result<Step
         "step",
         &format!("{artifact_dir}: no trigger artifact matched"),
     ))
+}
+
+/// Read the config and resolve the current step: the explicitly named
+/// `--step <NAME>` when given, else the step derived from cwd + git branch
+/// + trigger artifacts.
+///
+/// The config is returned alongside the step because callers resolve
+/// step-dependent values against it (`model`/`thinking` resolve the model,
+/// `prompt`/`script` resolve prompts/scripts, `step` reads the name).
+/// `read_config` runs before any git/env work so a missing/unreadable config
+/// deterministically fails with `"io"`, and the explicit-name path never
+/// shells out to git or reads cwd (so `--step` works in non-repos).
+pub(crate) fn read_config_and_step(
+    path: &std::path::Path,
+    source: crate::config_dir::ConfigPathSource,
+    step: Option<String>,
+) -> Result<(Config, Step), Error> {
+    let cfg = crate::config::read_config(path, source)?;
+    let step = if let Some(name) = step {
+        resolve_step(&cfg, &name)?
+    } else {
+        let cwd = std::env::current_dir()?;
+        let artifact_dir = artifact_dir_path(&cwd, &git::current_branch()?);
+        determine_step(&cfg, &artifact_dir)?
+    };
+    Ok((cfg, step))
 }
 
 /// Look up the named model (the current step's `model` reference) in
@@ -412,6 +439,54 @@ mod tests {
             scripts: vec![],
         };
         let err = resolve_step(&config, "nope").unwrap_err();
+        assert_eq!(err.source, "step");
+        assert!(
+            err.message.contains("no step named \"nope\""),
+            "{}",
+            err.message
+        );
+    }
+
+    #[test]
+    fn read_config_and_step_explicit_name_resolves_step() {
+        // A tempdir with NO git repo: happy path must complete without git,
+        // proving the explicit-name arm never shells out or reads cwd.
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("orksorksorks.toml"),
+            concat!(
+                "version = \"0.1.0\"\n",
+                "[[steps]]\nname = \"one\"\ntrigger_artifact = \"first.txt\"\nmodel = \"small\"\n",
+                "[[models]]\nname = \"small\"\nmodel = \"openrouter/deepseek/flash\"\nthinking = \"high\"\n",
+                "[[prompts]]\nname = \"one\"\ncontent = \"one\"\n",
+            ),
+        )
+        .unwrap();
+        let (cfg, step) = read_config_and_step(
+            &dir.path().join("orksorksorks.toml"),
+            crate::config_dir::ConfigPathSource::ExplicitFlag,
+            Some("one".to_string()),
+        )
+        .unwrap();
+        assert!(cfg.steps.len() == 1, "{}", cfg.steps.len());
+        assert_eq!(step.name, "one");
+        assert_eq!(step.model, "small");
+    }
+
+    #[test]
+    fn read_config_and_step_unknown_name_tags_step() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("orksorksorks.toml"),
+            "version = \"0.1.0\"\n",
+        )
+        .unwrap();
+        let err = read_config_and_step(
+            &dir.path().join("orksorksorks.toml"),
+            crate::config_dir::ConfigPathSource::ExplicitFlag,
+            Some("nope".to_string()),
+        )
+        .unwrap_err();
         assert_eq!(err.source, "step");
         assert!(
             err.message.contains("no step named \"nope\""),

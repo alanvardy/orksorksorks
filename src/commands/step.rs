@@ -1,6 +1,5 @@
 use super::resolve;
 use crate::errors::Error;
-use crate::git;
 
 /// Handle the `step` subcommand: read the config and return the current step
 /// name. With `--step <NAME>`, the name replaces artifact-based derivation
@@ -16,14 +15,7 @@ pub(crate) fn step_command(
     source: crate::config_dir::ConfigPathSource,
     step: Option<String>,
 ) -> Result<String, Error> {
-    let cfg = crate::config::read_config(path, source)?;
-    let step = if let Some(name) = step {
-        resolve::resolve_step(&cfg, &name)?
-    } else {
-        let cwd = std::env::current_dir()?;
-        let artifact_dir = resolve::artifact_dir_path(&cwd, &git::current_branch()?);
-        resolve::determine_step(&cfg, &artifact_dir)?
-    };
+    let (_, step) = resolve::read_config_and_step(path, source, step)?;
     Ok(step.name)
 }
 

@@ -18,16 +18,8 @@ pub(crate) fn prompt_command(
     source: crate::config_dir::ConfigPathSource,
     step: Option<String>,
 ) -> Result<String, Error> {
-    let cfg = crate::config::read_config(path, source)?;
-    let name = if let Some(name) = step {
-        resolve::resolve_step(&cfg, &name)?.name
-    } else {
-        // No explicit step: derive the current step from trigger artifacts,
-        // exactly like `step`/`model`/`thinking`.
-        let cwd = std::env::current_dir()?;
-        let artifact_dir = resolve::artifact_dir_path(&cwd, &git::current_branch()?);
-        resolve::determine_step(&cfg, &artifact_dir)?.name
-    };
+    let (cfg, step) = resolve::read_config_and_step(path, source, step)?;
+    let name = step.name;
     let content = resolve::resolve_prompt(&cfg, &name)?;
 
     // Frontmatter carries the run context (step, branch, artifact dir) above
