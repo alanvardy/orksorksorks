@@ -67,7 +67,8 @@ The name is an intentional typo: the tool manages artifacts under
   derivation and `branch`/`artifact_directory` call `git branch
   --show-current`, which fails on a detached HEAD. Pass `--step NAME` (or a
   positional step name to `script`) to skip git for that command — except
-  `prompt`, which still resolves the branch for the frontmatter block.
+  `prompt`, which still resolves the branch for the frontmatter block unless
+  `show_frontmatter = false`.
 
 ## Installation
 
@@ -140,11 +141,13 @@ The `version` field must equal the supported config version, `"0.1.0"`
 block. `[[steps]]` are the workflow's phases: `name` must match a
 `[[prompts]]` entry (else `config:missing-prompt`) and `model` must name a
 `[[models]]` entry (else `config:missing-model`). `script` is optional and
-references a `[[scripts]]` entry. Names must be unique per section
-(`config:duplicate-name`), must not be blank (`config:empty-name`), each step
-needs a non-empty model reference (`config:empty-model`), trigger artifacts
-must be unique across steps (`config:duplicate-trigger`), and at most one step
-may use an empty trigger as the default (`config:multiple-default`).
+references a `[[scripts]]` entry. Names must be unique
+(`config:duplicate-name`) and non-blank (`config:empty-name`) in the `steps`,
+`models`, and `prompts` sections — script names are not validated — and each
+step needs a non-empty model reference (`config:empty-model`), trigger
+artifacts must be unique across steps (`config:duplicate-trigger`), and at
+most one step may use an empty trigger as the default
+(`config:multiple-default`).
 
 ## JSON output
 
