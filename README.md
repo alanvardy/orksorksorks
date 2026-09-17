@@ -6,9 +6,12 @@ steps, the model and prompt for each step, and optional scripts, then answers
 "which step am I on?" from the files present in the artifact directory and
 prints the step's prompt, model, or thinking budget on demand.
 
-The name is an intentional typo: the tool manages artifacts under
-`.pi/orksorksorks/`, and a `orksworksorks` typo would mis-create
-`.pi/orksworksorks/` parents.
+The name is not a typo: it is a Warhammer reference to Orks shouting
+"Orks Orks Orks", and a tongue-in-cheek comparison with coding agents —
+individually a little dumb, but more powerful in larger numbers. Worth
+spelling carefully: artifacts live under `.pi/orksorksorks/`, and a
+`orksworksorks` misspelling would mis-create `.pi/orksworksorks/`
+parents.
 
 ## What it is
 
@@ -74,9 +77,8 @@ The name is an intentional typo: the tool manages artifacts under
 
 **Prerequisites**
 
-- A Rust toolchain. The repo pins `1.98.1` in `rust-toolchain.toml` (with
-  `clippy` and `rustfmt` components; the crate uses the 2024 edition).
-  `rustup` will honor the pinned toolchain automatically.
+- Install a Rust toolchain with `rustup` (https://rustup.rs). The repo pins
+  `1.98.1` in `rust-toolchain.toml`, which `rustup` honors automatically.
 
 **Install**
 
