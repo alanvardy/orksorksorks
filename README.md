@@ -158,6 +158,12 @@ print `{"error": {"message": ..., "source": ...}}` with exit status 1. The
 `source` is a lowercase tag (`io`, `toml::de`, `config:*`, `git`, …) and the
 `message` is human-readable.
 
+## Also from Alan
+
+- **[Exzeitable](https://github.com/alanvardy/exzeitable)** — Dynamically updating, searchable, sortable data tables for Phoenix LiveView, from one database query and one module.
+- **[SingleThread](https://github.com/alanvardy/SingleThread)** — Shows one Apple Reminder at a time for calm, focused momentum. iPhone, iPad, Mac, and Apple Watch.
+- **[CheckStitch](https://github.com/alanvardy/CheckStitch)** — Turns a checklist into Apple Reminders, one reminder per item, in one tap. iPhone, iPad, Mac, and Apple Watch.
+
 ## License
 
 MIT — see `Cargo.toml`. Homepage and repository:
